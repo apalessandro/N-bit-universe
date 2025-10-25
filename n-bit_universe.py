@@ -17,6 +17,8 @@ from collections import Counter, defaultdict
 from typing import Callable, Dict, Iterable, List, Sequence, Tuple
 
 import numpy as np
+import matplotlib.pyplot as plt
+import networkx as nx
 
 Array = np.ndarray
 State = Array  # shape (N,), dtype uint8 with entries in {0,1}
@@ -262,6 +264,75 @@ def print_cycles(N: int) -> None:
             print([bin(x)[2:].zfill(N) for x in c])
 
 
+def visualize_graph(
+    N: int, step_fn: StepFn = rule90_step, save_path: str | None = None
+) -> None:
+    """
+    Visualize the directed graph of the microscopic phase space.
+    Nodes are bit strings and edges connect each configuration to its successor under T.
+    """
+    # Get the permutation graph
+    mapping = permutation_graph(N, step_fn)
+
+    # Create directed graph
+    G = nx.DiGraph()
+
+    # Add nodes with bit string labels
+    for x in range(2**N):
+        bit_string = bin(x)[2:].zfill(N)
+        G.add_node(x, label=bit_string)
+
+    # Add edges
+    for x, y in mapping.items():
+        G.add_edge(x, y)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 10))
+
+    # Use circular layout for better cycle visualization
+    pos = nx.spring_layout(G, k=2, iterations=50, seed=42)
+
+    # Draw the graph
+    nx.draw_networkx_nodes(G, pos, node_color="lightblue", node_size=800, ax=ax)
+    nx.draw_networkx_edges(
+        G,
+        pos,
+        edge_color="gray",
+        arrows=True,
+        arrowsize=20,
+        arrowstyle="->",
+        ax=ax,
+        connectionstyle="arc3,rad=0.1",
+    )
+
+    # Draw labels as bit strings
+    labels = {x: bin(x)[2:].zfill(N) for x in G.nodes()}
+    nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight="bold", ax=ax)
+
+    ax.set_title(
+        f"Microscopic Phase Space Graph for N={N}\n"
+        f"$|\\Omega| = 2^{{{N}}} = {2**N}$ states",
+        fontsize=14,
+        fontweight="bold",
+    )
+    ax.axis("off")
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Graph saved to {save_path}")
+    else:
+        plt.show()
+
+    # Print cycle information
+    cycs = cycles(N, step_fn)
+    print("\nGraph structure:")
+    print(f"  Nodes: {G.number_of_nodes()}")
+    print(f"  Edges: {G.number_of_edges()}")
+    print(f"  Cycles: {len(cycs)}")
+    print(f"  Cycle lengths: {sorted(len(c) for c in cycs)}")
+
+
 # ----------------------------
 # CLI
 # ----------------------------
@@ -288,11 +359,25 @@ def main():
     p_cycles = sub.add_parser("cycles", help="Print cycle decomposition stats.")
     p_cycles.add_argument("-N", type=int, default=4, help="Number of bits")
 
+    p_graph = sub.add_parser(
+        "graph", help="Visualize the microscopic phase space graph."
+    )
+    p_graph.add_argument("-N", type=int, default=4, help="Number of bits")
+    p_graph.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default=None,
+        help="Save graph to file (e.g., graph.png)",
+    )
+
     args = parser.parse_args()
     if args.cmd == "demo":
         run_demo(args.N, args.steps, args.coarse)
     elif args.cmd == "cycles":
         print_cycles(args.N)
+    elif args.cmd == "graph":
+        visualize_graph(args.N, save_path=args.output)
 
 
 if __name__ == "__main__":
