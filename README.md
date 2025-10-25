@@ -61,7 +61,7 @@ Options:
 
 Example output:
 
-```
+```text
 N=4, steps=16, coarse=parity
 First 10 macrostates along trajectory: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
 Histogram of macrostates on trajectory: {1: 9, 0: 8}
@@ -125,7 +125,7 @@ cycle_list = cycles(N, rule90_step)
 
 Each bit updates according to:
 
-```
+```text
 s'[i] = s[i-1] ⊕ s[i+1]
 ```
 
