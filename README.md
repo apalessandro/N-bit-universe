@@ -81,6 +81,58 @@ Options:
 
 - `-N`: Number of bits (default: 4)
 
+#### Microscopic Phase Space Visualization
+
+Visualize the complete state space graph showing all microscopic transitions:
+
+```bash
+python n-bit_universe.py graph -N 4
+```
+
+Options:
+
+- `-N`: Number of bits (default: 4)
+
+Shows a directed graph where:
+
+- Nodes represent individual microstates (bit strings)
+- Edges show the deterministic evolution under rule-90
+- Cycles are visible in the graph structure
+
+#### Coarse-Grained Phase Space Visualization
+
+Visualize the macroscopic state space with different coarse-graining methods:
+
+```bash
+python n-bit_universe.py coarse-graph -N 8 -c rotation
+```
+
+Options:
+
+- `-N`: Number of bits (default: 4)
+- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, or `rotation` (default: parity)
+
+Features:
+
+- **Node size**: Proportional to the number of microstates in each macrostate (capped at maximum size)
+- **Node labels**: Show macrostate value and microstate count
+- **Edge width**: Proportional to transition probability
+- **Edge labels**: Display the number of microstates making each transition
+- Automatically tests for Markovian closure
+
+Example:
+
+```bash
+# Visualize with parity coarse-graining
+python n-bit_universe.py coarse-graph -N 16 -c parity
+
+# Visualize with Hamming weight
+python n-bit_universe.py coarse-graph -N 8 -c weight
+
+# Visualize with rotation classes
+python n-bit_universe.py coarse-graph -N 8 -c rotation
+```
+
 ### Python API
 
 ```python
