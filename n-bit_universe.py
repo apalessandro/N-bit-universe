@@ -318,11 +318,11 @@ def visualize_graph(
     ax.axis("off")
     plt.tight_layout()
 
+    plt.show()
+
     if save_path:
-        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
         print(f"Graph saved to {save_path}")
-    else:
-        plt.show()
 
     # Print cycle information
     cycs = cycles(N, step_fn)
@@ -331,6 +331,147 @@ def visualize_graph(
     print(f"  Edges: {G.number_of_edges()}")
     print(f"  Cycles: {len(cycs)}")
     print(f"  Cycle lengths: {sorted(len(c) for c in cycs)}")
+
+
+def visualize_coarse_graph(
+    N: int,
+    coarse: str,
+    step_fn: StepFn = rule90_step,
+    save_path: str | None = None,
+) -> None:
+    """
+    Visualize the coarse-grained phase space graph.
+    Nodes are macrostates (labeled with their macrostate value and microstate count),
+    and edges show transitions between macrostates.
+    """
+    coarse_map: Dict[str, CoarseFn] = {
+        "weight": cg_weight,
+        "parity": cg_parity,
+        "rotation": cg_rotation_class,
+    }
+    if coarse not in coarse_map:
+        raise ValueError(
+            f"Unknown coarse-graining {coarse}. Choose from {list(coarse_map)}"
+        )
+    cg = coarse_map[coarse]
+
+    # Get all microstates and their macrostates
+    states = enumerate_states(N)
+    micro_to_macro = {state_to_int(s): cg(s) for s in states}
+
+    # Group microstates by macrostate
+    macro_to_micros: Dict[object, List[int]] = defaultdict(list)
+    for micro_int, macro in micro_to_macro.items():
+        macro_to_micros[macro].append(micro_int)
+
+    # Get unique macrostates (sorted for consistent ordering)
+    unique_macros = sorted(macro_to_micros.keys(), key=lambda x: (str(type(x)), str(x)))
+
+    # Build macro transition graph
+    G = nx.DiGraph()
+
+    # Add nodes for each macrostate with label showing macro value and microstate count
+    for macro in unique_macros:
+        count = len(macro_to_micros[macro])
+        # Format the label based on the type of macrostate
+        if isinstance(macro, tuple):
+            # For rotation class, show the bit pattern
+            label = f"{''.join(map(str, macro))}\n({count})"
+        else:
+            label = f"{macro}\n({count})"
+        G.add_node(macro, label=label, count=count)
+
+    # Build macro transitions: for each macrostate, see where its microstates go
+    macro_transitions: Dict[Tuple[object, object], int] = defaultdict(int)
+    for macro_from in unique_macros:
+        for micro_int in macro_to_micros[macro_from]:
+            s = int_to_state(micro_int, N)
+            s_next = step_fn(s)
+            macro_to = cg(s_next)
+            macro_transitions[(macro_from, macro_to)] += 1
+
+    # Add edges with weights (number of microstates making this transition)
+    for (macro_from, macro_to), weight in macro_transitions.items():
+        G.add_edge(macro_from, macro_to, weight=weight)
+
+    # Create figure
+    fig, ax = plt.subplots(figsize=(14, 10))
+
+    # Use layout appropriate for the graph structure
+    if len(unique_macros) <= 10:
+        pos = nx.spring_layout(G, k=3, iterations=50, seed=42)
+    else:
+        pos = nx.kamada_kawai_layout(G)
+
+    # Node sizes proportional to number of microstates
+    node_sizes = [G.nodes[macro]["count"] * 300 for macro in G.nodes()]
+
+    # Draw nodes
+    nx.draw_networkx_nodes(
+        G, pos, node_color="lightcoral", node_size=node_sizes, alpha=0.7, ax=ax
+    )
+
+    # Draw edges with varying width based on weight
+    edges = G.edges()
+    weights = [G[u][v]["weight"] for u, v in edges]
+    max_weight = max(weights) if weights else 1
+    edge_widths = [2 + 3 * (w / max_weight) for w in weights]
+
+    nx.draw_networkx_edges(
+        G,
+        pos,
+        edge_color="gray",
+        arrows=True,
+        arrowsize=20,
+        arrowstyle="->",
+        width=edge_widths,
+        ax=ax,
+        connectionstyle="arc3,rad=0.1",
+    )
+
+    # Draw labels
+    labels = {macro: G.nodes[macro]["label"] for macro in G.nodes()}
+    nx.draw_networkx_labels(G, pos, labels, font_size=9, font_weight="bold", ax=ax)
+
+    # Add edge labels showing transition counts for clarity (optional, can be toggled)
+    if len(unique_macros) <= 8:  # Only show edge labels for small graphs
+        edge_labels = {
+            (u, v): f"{G[u][v]['weight']}"
+            for u, v in G.edges()
+            if G[u][v]["weight"] > 0
+        }
+        nx.draw_networkx_edge_labels(
+            G, pos, edge_labels, font_size=7, font_color="blue", ax=ax
+        )
+
+    # Title with coarse-graining info
+    coarse_display = coarse.capitalize()
+    ax.set_title(
+        f"Coarse-Grained Phase Space Graph (N={N}, Coarse-graining: {coarse_display})\n"
+        f"Macrostates: {len(unique_macros)}, Total microstates: {2**N}\n"
+        f"Node labels show: macrostate value (microstate count)",
+        fontsize=12,
+        fontweight="bold",
+    )
+    ax.axis("off")
+    plt.tight_layout()
+
+    plt.show()
+
+    if save_path:
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Coarse-grained graph saved to {save_path}")
+
+    # Print statistics
+    print("\nCoarse-grained graph structure:")
+    print(f"  Coarse-graining: {coarse_display}")
+    print(f"  Macrostates: {len(unique_macros)}")
+    print("  Microstates per macrostate:")
+    for macro in unique_macros:
+        count = len(macro_to_micros[macro])
+        print(f"    {macro}: {count} microstates")
+    print(f"  Macro transitions: {G.number_of_edges()}")
+    print(f"  Markovianly closed? {is_markovianly_closed(N, cg, step_fn)}")
 
 
 # ----------------------------
@@ -355,6 +496,11 @@ def main():
         choices=["parity", "weight", "rotation"],
         help="Coarse-graining",
     )
+    p_demo.add_argument(
+        "--plot",
+        action="store_true",
+        help="Show coarse-grained phase space graph",
+    )
 
     p_cycles = sub.add_parser("cycles", help="Print cycle decomposition stats.")
     p_cycles.add_argument("-N", type=int, default=4, help="Number of bits")
@@ -371,13 +517,37 @@ def main():
         help="Save graph to file (e.g., graph.png)",
     )
 
+    p_coarse_graph = sub.add_parser(
+        "coarse-graph", help="Visualize the coarse-grained phase space graph."
+    )
+    p_coarse_graph.add_argument("-N", type=int, default=4, help="Number of bits")
+    p_coarse_graph.add_argument(
+        "-c",
+        "--coarse",
+        type=str,
+        default="parity",
+        choices=["parity", "weight", "rotation"],
+        help="Coarse-graining",
+    )
+    p_coarse_graph.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        default=None,
+        help="Save graph to file (e.g., coarse_graph.png)",
+    )
+
     args = parser.parse_args()
     if args.cmd == "demo":
         run_demo(args.N, args.steps, args.coarse)
+        if args.plot:
+            visualize_coarse_graph(args.N, args.coarse)
     elif args.cmd == "cycles":
         print_cycles(args.N)
     elif args.cmd == "graph":
         visualize_graph(args.N, save_path=args.output)
+    elif args.cmd == "coarse-graph":
+        visualize_coarse_graph(args.N, args.coarse, save_path=args.output)
 
 
 if __name__ == "__main__":
