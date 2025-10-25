@@ -223,7 +223,7 @@ def is_markovianly_closed(
 
 
 def run_demo(N: int, steps: int, coarse: str) -> None:
-    """Small demo printing macro entropy over time and closure result."""
+    """Small demo printing macro entropy over time and visualizing trajectory on coarse-grained graph."""
     coarse_map: Dict[str, CoarseFn] = {
         "weight": cg_weight,
         "parity": cg_parity,
@@ -238,9 +238,25 @@ def run_demo(N: int, steps: int, coarse: str) -> None:
     s0 = int_to_state(1, N)  # start from 00..01
     traj = evolve(s0, steps, rule90_step)
     macs = [cg(s) for s in traj]
+
+    # Build macro-to-micros mapping to get entropy of each macrostate
+    states = enumerate_states(N)
+    macro_to_micros: Dict[object, List[int]] = defaultdict(list)
+    for s in states:
+        macro = cg(s)
+        macro_to_micros[macro].append(state_to_int(s))
+
+    # Compute entropy at each time step (entropy of the macrostate occupied)
+    # This represents the uncertainty about which microstate we're in, given the macrostate
+    entropies = []
+    for mac in macs:
+        num_micros = len(macro_to_micros[mac])
+        # Entropy of uniform distribution over microstates in this macrostate
+        H_t = math.log(num_micros) if num_micros > 0 else 0.0
+        entropies.append(H_t)
+
     counts = Counter(macs)
     H_macro = entropy_from_counts(counts)  # single bag over the whole run
-    # If you want H_macro(t), compute a sliding histogram or per-time distribution.
 
     print(f"N={N}, steps={steps}, coarse={coarse}")
     print(f"First 10 macrostates along trajectory: {macs[:10]}")
@@ -252,6 +268,184 @@ def run_demo(N: int, steps: int, coarse: str) -> None:
     print("Induced macro transition matrix M[m', m] with uniform-in-macro weighting:")
     for i, row in enumerate(M):
         print(f"to {labels[i]}: " + " ".join(f"{x:.3f}" for x in row))
+
+    # Visualize the trajectory on the coarse-grained graph
+    _visualize_demo_trajectory(N, cg, macs, entropies, coarse, rule90_step)
+
+
+def _visualize_demo_trajectory(
+    N: int,
+    cg: CoarseFn,
+    trajectory_macs: List[object],
+    entropies: List[float],
+    coarse: str,
+    step_fn: StepFn = rule90_step,
+) -> None:
+    """
+    Visualize the trajectory on the coarse-grained phase space graph with entropy plot.
+    """
+    # Get all microstates and their macrostates
+    states = enumerate_states(N)
+    micro_to_macro = {state_to_int(s): cg(s) for s in states}
+
+    # Group microstates by macrostate
+    macro_to_micros: Dict[object, List[int]] = defaultdict(list)
+    for micro_int, macro in micro_to_macro.items():
+        macro_to_micros[macro].append(micro_int)
+
+    # Get unique macrostates
+    unique_macros = sorted(macro_to_micros.keys(), key=lambda x: (str(type(x)), str(x)))
+
+    # Build macro transition graph
+    G = nx.DiGraph()
+
+    # Add nodes
+    for macro in unique_macros:
+        count = len(macro_to_micros[macro])
+        if isinstance(macro, tuple):
+            label = f"{''.join(map(str, macro))}\n({count})"
+        else:
+            label = f"{macro}\n({count})"
+        G.add_node(macro, label=label, count=count)
+
+    # Build macro transitions
+    macro_transitions: Dict[Tuple[object, object], int] = defaultdict(int)
+    for macro_from in unique_macros:
+        for micro_int in macro_to_micros[macro_from]:
+            s = int_to_state(micro_int, N)
+            s_next = step_fn(s)
+            macro_to = cg(s_next)
+            macro_transitions[(macro_from, macro_to)] += 1
+
+    # Add edges
+    for (macro_from, macro_to), weight in macro_transitions.items():
+        G.add_edge(macro_from, macro_to, weight=weight)
+
+    # Create figure with two subplots: graph and entropy
+    fig = plt.figure(figsize=(16, 8))
+    gs = fig.add_gridspec(1, 2, width_ratios=[2, 1])
+    ax_graph = fig.add_subplot(gs[0])
+    ax_entropy = fig.add_subplot(gs[1])
+
+    # Layout
+    if len(unique_macros) <= 10:
+        pos = nx.spring_layout(G, k=3, iterations=50, seed=42)
+    else:
+        pos = nx.kamada_kawai_layout(G)
+
+    # Node sizes
+    max_node_size = 3000
+    raw_sizes = [G.nodes[macro]["count"] * 300 for macro in G.nodes()]
+    node_sizes = [min(size, max_node_size) for size in raw_sizes]
+
+    # Draw base graph
+    nx.draw_networkx_nodes(
+        G, pos, node_color="lightcoral", node_size=node_sizes, alpha=0.3, ax=ax_graph
+    )
+
+    # Draw edges
+    edges = G.edges()
+    weights = [G[u][v]["weight"] for u, v in edges]
+    max_weight = max(weights) if weights else 1
+    edge_widths = [2 + 3 * (w / max_weight) for w in weights]
+
+    nx.draw_networkx_edges(
+        G,
+        pos,
+        edge_color="gray",
+        arrows=True,
+        arrowsize=20,
+        arrowstyle="->",
+        width=edge_widths,
+        ax=ax_graph,
+        connectionstyle="arc3,rad=0.1",
+        alpha=0.3,
+    )
+
+    # Draw labels
+    labels = {macro: G.nodes[macro]["label"] for macro in G.nodes()}
+    nx.draw_networkx_labels(
+        G, pos, labels, font_size=9, font_weight="bold", ax=ax_graph
+    )
+
+    # Highlight the trajectory path
+    traj_edges = []
+    for i in range(len(trajectory_macs) - 1):
+        m_from = trajectory_macs[i]
+        m_to = trajectory_macs[i + 1]
+        if G.has_edge(m_from, m_to):
+            traj_edges.append((m_from, m_to))
+
+    if traj_edges:
+        nx.draw_networkx_edges(
+            G,
+            pos,
+            edgelist=traj_edges,
+            edge_color="red",
+            arrows=True,
+            arrowsize=25,
+            arrowstyle="->",
+            width=3,
+            ax=ax_graph,
+            connectionstyle="arc3,rad=0.1",
+        )
+
+    # Highlight visited nodes
+    visited_macros = list(set(trajectory_macs))
+    visited_node_sizes = []
+    for macro in visited_macros:
+        if macro in G.nodes():
+            idx = list(G.nodes()).index(macro)
+            visited_node_sizes.append(node_sizes[idx])
+        else:
+            visited_node_sizes.append(800)
+
+    visited_pos = {m: pos[m] for m in visited_macros if m in pos}
+    nx.draw_networkx_nodes(
+        G,
+        visited_pos,
+        nodelist=visited_macros,
+        node_color="darkred",
+        node_size=visited_node_sizes,
+        alpha=0.8,
+        ax=ax_graph,
+    )
+
+    # Highlight starting position
+    if trajectory_macs[0] in pos:
+        start_macro = trajectory_macs[0]
+        nx.draw_networkx_nodes(
+            G,
+            {start_macro: pos[start_macro]},
+            nodelist=[start_macro],
+            node_color="green",
+            node_size=[node_sizes[list(G.nodes()).index(start_macro)]],
+            alpha=1.0,
+            ax=ax_graph,
+            edgecolors="darkgreen",
+            linewidths=3,
+        )
+
+    coarse_display = coarse.capitalize()
+    ax_graph.set_title(
+        f"Trajectory Visualization (N={N}, {coarse_display})\n"
+        f"Green=Start, Red edges=Trajectory path",
+        fontsize=12,
+        fontweight="bold",
+    )
+    ax_graph.axis("off")
+
+    # Plot entropy over time
+    time_steps = list(range(len(entropies)))
+    ax_entropy.plot(time_steps, entropies, "b-o", linewidth=2, markersize=4)
+    ax_entropy.set_xlabel("Time Step", fontsize=11, fontweight="bold")
+    ax_entropy.set_ylabel("Macrostate Entropy (nats)", fontsize=11, fontweight="bold")
+    ax_entropy.set_title("Macrostate Entropy Over Time", fontsize=12, fontweight="bold")
+    ax_entropy.grid(True, alpha=0.3)
+    ax_entropy.set_xlim(-0.5, len(entropies) - 0.5)
+
+    plt.tight_layout()
+    plt.show()
 
 
 def print_cycles(N: int) -> None:

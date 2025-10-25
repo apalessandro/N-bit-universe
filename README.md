@@ -47,7 +47,7 @@ pip install numpy
 
 #### Demo Mode
 
-Run a simulation with macro-level analysis:
+Run a simulation with macro-level analysis and visualization:
 
 ```bash
 python n-bit_universe.py demo -N 4 -t 16 -c parity
@@ -58,6 +58,16 @@ Options:
 - `-N`: Number of bits (default: 4)
 - `-t, --steps`: Number of time steps (default: 16)
 - `-c, --coarse`: Coarse-graining method: `parity`, `weight`, or `rotation` (default: parity)
+
+The demo mode provides:
+
+- **Trajectory visualization**: Shows the path through the coarse-grained state space
+  - Green node marks the starting macrostate
+  - Red edges highlight the trajectory path
+  - Dark red nodes show visited macrostates
+- **Entropy tracking**: Plots the macrostate entropy at each time step
+- **Markovian closure test**: Checks if the coarse-graining preserves Markov structure
+- **Transition matrix**: Shows induced macro-level dynamics
 
 Example output:
 
