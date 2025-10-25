@@ -264,9 +264,7 @@ def print_cycles(N: int) -> None:
             print([bin(x)[2:].zfill(N) for x in c])
 
 
-def visualize_graph(
-    N: int, step_fn: StepFn = rule90_step, save_path: str | None = None
-) -> None:
+def visualize_graph(N: int, step_fn: StepFn = rule90_step) -> None:
     """
     Visualize the directed graph of the microscopic phase space.
     Nodes are bit strings and edges connect each configuration to its successor under T.
@@ -320,10 +318,6 @@ def visualize_graph(
 
     plt.show()
 
-    if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches="tight")
-        print(f"Graph saved to {save_path}")
-
     # Print cycle information
     cycs = cycles(N, step_fn)
     print("\nGraph structure:")
@@ -337,7 +331,6 @@ def visualize_coarse_graph(
     N: int,
     coarse: str,
     step_fn: StepFn = rule90_step,
-    save_path: str | None = None,
 ) -> None:
     """
     Visualize the coarse-grained phase space graph.
@@ -403,8 +396,10 @@ def visualize_coarse_graph(
     else:
         pos = nx.kamada_kawai_layout(G)
 
-    # Node sizes proportional to number of microstates
-    node_sizes = [G.nodes[macro]["count"] * 300 for macro in G.nodes()]
+    # Node sizes proportional to number of microstates with a maximum cap
+    max_node_size = 3000  # Maximum size for the red ball
+    raw_sizes = [G.nodes[macro]["count"] * 300 for macro in G.nodes()]
+    node_sizes = [min(size, max_node_size) for size in raw_sizes]
 
     # Draw nodes
     nx.draw_networkx_nodes(
@@ -433,16 +428,13 @@ def visualize_coarse_graph(
     labels = {macro: G.nodes[macro]["label"] for macro in G.nodes()}
     nx.draw_networkx_labels(G, pos, labels, font_size=9, font_weight="bold", ax=ax)
 
-    # Add edge labels showing transition counts for clarity (optional, can be toggled)
-    if len(unique_macros) <= 8:  # Only show edge labels for small graphs
-        edge_labels = {
-            (u, v): f"{G[u][v]['weight']}"
-            for u, v in G.edges()
-            if G[u][v]["weight"] > 0
-        }
-        nx.draw_networkx_edge_labels(
-            G, pos, edge_labels, font_size=7, font_color="blue", ax=ax
-        )
+    # Always display edge labels showing transition counts
+    edge_labels = {
+        (u, v): f"{G[u][v]['weight']}" for u, v in G.edges() if G[u][v]["weight"] > 0
+    }
+    nx.draw_networkx_edge_labels(
+        G, pos, edge_labels, font_size=7, font_color="blue", ax=ax
+    )
 
     # Title with coarse-graining info
     coarse_display = coarse.capitalize()
@@ -457,10 +449,6 @@ def visualize_coarse_graph(
     plt.tight_layout()
 
     plt.show()
-
-    if save_path:
-        fig.savefig(save_path, dpi=300, bbox_inches="tight")
-        print(f"Coarse-grained graph saved to {save_path}")
 
     # Print statistics
     print("\nCoarse-grained graph structure:")
@@ -509,13 +497,6 @@ def main():
         "graph", help="Visualize the microscopic phase space graph."
     )
     p_graph.add_argument("-N", type=int, default=4, help="Number of bits")
-    p_graph.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default=None,
-        help="Save graph to file (e.g., graph.png)",
-    )
 
     p_coarse_graph = sub.add_parser(
         "coarse-graph", help="Visualize the coarse-grained phase space graph."
@@ -529,13 +510,6 @@ def main():
         choices=["parity", "weight", "rotation"],
         help="Coarse-graining",
     )
-    p_coarse_graph.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        default=None,
-        help="Save graph to file (e.g., coarse_graph.png)",
-    )
 
     args = parser.parse_args()
     if args.cmd == "demo":
@@ -545,9 +519,9 @@ def main():
     elif args.cmd == "cycles":
         print_cycles(args.N)
     elif args.cmd == "graph":
-        visualize_graph(args.N, save_path=args.output)
+        visualize_graph(args.N)
     elif args.cmd == "coarse-graph":
-        visualize_coarse_graph(args.N, args.coarse, save_path=args.output)
+        visualize_coarse_graph(args.N, args.coarse)
 
 
 if __name__ == "__main__":
