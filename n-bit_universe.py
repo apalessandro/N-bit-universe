@@ -1,6 +1,7 @@
 """
-Finite Descriptive Universe: rule-90 cellular automaton on N bits.
+Finite Descriptive Universe: elementary cellular automaton on N bits.
 Implements:
+  - Any elementary cellular automaton rule (0-255) via Wolfram encoding
   - Deterministic synchronous updates with periodic boundary conditions
   - Coarse-grainings: Hamming weight, parity, rotation class
   - Microscopic and macroscopic entropy (natural logs)
@@ -30,9 +31,83 @@ CoarseFn = Callable[[State], object]
 # ----------------------------
 
 
+def make_rule_step(rule_number: int) -> StepFn:
+    """
+    Create a step function for any elementary cellular automaton (0-255).
+    Uses Wolfram's rule encoding where the rule number's binary representation
+    gives the output for each of the 8 possible 3-bit neighborhoods.
+
+    Neighborhood encoding (left, center, right):
+      111 -> bit 7, 110 -> bit 6, 101 -> bit 5, 100 -> bit 4,
+      011 -> bit 3, 010 -> bit 2, 001 -> bit 1, 000 -> bit 0
+
+    Args:
+        rule_number: Integer from 0 to 255
+
+    Returns:
+        Step function that applies the rule
+    """
+    if not 0 <= rule_number <= 255:
+        raise ValueError(f"Rule number must be 0-255, got {rule_number}")
+
+    # Precompute lookup table from rule number
+    lookup = [(rule_number >> i) & 1 for i in range(8)]
+
+    def step(s: State) -> State:
+        left = np.roll(s, 1)
+        center = s
+        right = np.roll(s, -1)
+
+        # Compute neighborhood index: 4*left + 2*center + right
+        neighborhood = 4 * left + 2 * center + right
+
+        # Apply lookup table
+        result = np.array([lookup[idx] for idx in neighborhood], dtype=np.uint8)
+        return result
+
+    return step
+
+
+# Convenient preset functions for well-known rules
+def rule30_step(s: State) -> State:
+    """Rule-30: Chaotic behavior."""
+    return make_rule_step(30)(s)
+
+
 def rule90_step(s: State) -> State:
-    """One synchronous update of rule-90 with periodic boundaries."""
-    return np.bitwise_xor(np.roll(s, 1), np.roll(s, -1)).astype(np.uint8)
+    """Rule-90: Additive, XOR of neighbors."""
+    return make_rule_step(90)(s)
+
+
+def rule110_step(s: State) -> State:
+    """Rule-110: Turing complete."""
+    return make_rule_step(110)(s)
+
+
+def rule184_step(s: State) -> State:
+    """Rule-184: Traffic flow model."""
+    return make_rule_step(184)(s)
+
+
+def get_rule(rule: str) -> StepFn:
+    """
+    Get rule function by name or number.
+
+    Args:
+        rule: Rule number as string ("0" to "255") or preset name
+
+    Returns:
+        Step function for the specified rule
+    """
+    try:
+        rule_num = int(rule)
+        if not 0 <= rule_num <= 255:
+            raise ValueError(f"Rule number must be 0-255, got {rule_num}")
+        return make_rule_step(rule_num)
+    except ValueError as e:
+        if "invalid literal" in str(e):
+            raise ValueError(f"Invalid rule '{rule}'. Must be an integer 0-255.")
+        raise
 
 
 def evolve(s0: State, steps: int, step_fn: StepFn = rule90_step) -> List[State]:
@@ -222,7 +297,7 @@ def is_markovianly_closed(
 # ----------------------------
 
 
-def run_demo(N: int, steps: int, coarse: str) -> None:
+def run_demo(N: int, steps: int, coarse: str, rule: str = "90") -> None:
     """Small demo printing macro entropy over time and visualizing trajectory on coarse-grained graph."""
     coarse_map: Dict[str, CoarseFn] = {
         "weight": cg_weight,
@@ -234,9 +309,10 @@ def run_demo(N: int, steps: int, coarse: str) -> None:
             f"Unknown coarse-graining {coarse}. Choose from {list(coarse_map)}"
         )
     cg = coarse_map[coarse]
+    step_fn = get_rule(rule)
 
     s0 = int_to_state(1, N)  # start from 00..01
-    traj = evolve(s0, steps, rule90_step)
+    traj = evolve(s0, steps, step_fn)
     macs = [cg(s) for s in traj]
 
     # Build macro-to-micros mapping to get entropy of each macrostate
@@ -258,19 +334,19 @@ def run_demo(N: int, steps: int, coarse: str) -> None:
     counts = Counter(macs)
     H_macro = entropy_from_counts(counts)  # single bag over the whole run
 
-    print(f"N={N}, steps={steps}, coarse={coarse}")
+    print(f"N={N}, steps={steps}, rule={rule}, coarse={coarse}")
     print(f"First 10 macrostates along trajectory: {macs[:10]}")
     print(f"Histogram of macrostates on trajectory: {dict(counts)}")
     print(f"Macro entropy over trajectory bag (nats): {H_macro:.6f}")
-    print(f"Markovianly closed? {is_markovianly_closed(N, cg, rule90_step)}")
+    print(f"Markovianly closed? {is_markovianly_closed(N, cg, step_fn)}")
 
-    labels, M = induced_macro_transition_uniform(N, cg, rule90_step)
+    labels, M = induced_macro_transition_uniform(N, cg, step_fn)
     print("Induced macro transition matrix M[m', m] with uniform-in-macro weighting:")
     for i, row in enumerate(M):
         print(f"to {labels[i]}: " + " ".join(f"{x:.3f}" for x in row))
 
     # Visualize the trajectory on the coarse-grained graph
-    _visualize_demo_trajectory(N, cg, macs, entropies, coarse, rule90_step)
+    _visualize_demo_trajectory(N, cg, macs, entropies, coarse, step_fn, rule)
 
 
 def _visualize_demo_trajectory(
@@ -279,7 +355,8 @@ def _visualize_demo_trajectory(
     trajectory_macs: List[object],
     entropies: List[float],
     coarse: str,
-    step_fn: StepFn = rule90_step,
+    step_fn: StepFn,
+    rule: str = "90",
 ) -> None:
     """
     Visualize the trajectory on the coarse-grained phase space graph with entropy plot.
@@ -423,7 +500,7 @@ def _visualize_demo_trajectory(
 
     coarse_display = coarse.capitalize()
     ax_graph.set_title(
-        f"Trajectory Visualization (N={N}, {coarse_display})\n"
+        f"Trajectory Visualization (N={N}, Rule-{rule}, {coarse_display})\n"
         f"Green=Start, Red edges=Trajectory path",
         fontsize=12,
         fontweight="bold",
@@ -443,21 +520,23 @@ def _visualize_demo_trajectory(
     plt.show()
 
 
-def print_cycles(N: int) -> None:
-    cycs = cycles(N, rule90_step)
+def print_cycles(N: int, rule: str = "90") -> None:
+    step_fn = get_rule(rule)
+    cycs = cycles(N, step_fn)
     Ls = sorted(len(c) for c in cycs)
-    print(f"Permutation decomposes into {len(cycs)} cycles. Lengths: {Ls}")
+    print(f"Rule-{rule}: Permutation decomposes into {len(cycs)} cycles. Lengths: {Ls}")
     # Optionally print the cycles themselves for very small N
     if N <= 5:
         for c in cycs:
             print([bin(x)[2:].zfill(N) for x in c])
 
 
-def visualize_graph(N: int, step_fn: StepFn = rule90_step) -> None:
+def visualize_graph(N: int, rule: str = "90") -> None:
     """
     Visualize the directed graph of the microscopic phase space.
     Nodes are bit strings and edges connect each configuration to its successor under T.
     """
+    step_fn = get_rule(rule)
     # Get the permutation graph
     mapping = permutation_graph(N, step_fn)
 
@@ -497,7 +576,7 @@ def visualize_graph(N: int, step_fn: StepFn = rule90_step) -> None:
     nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight="bold", ax=ax)
 
     ax.set_title(
-        f"Phase Portrait Graph for N={N}\n$|\\Omega| = 2^{{{N}}} = {2**N}$ states",
+        f"Phase Portrait Graph (N={N}, Rule-{rule})\n$|\\Omega| = 2^{{{N}}} = {2**N}$ states",
         fontsize=14,
         fontweight="bold",
     )
@@ -518,7 +597,7 @@ def visualize_graph(N: int, step_fn: StepFn = rule90_step) -> None:
 def visualize_coarse_graph(
     N: int,
     coarse: str,
-    step_fn: StepFn = rule90_step,
+    rule: str = "90",
 ) -> None:
     """
     Visualize the coarse-grained phase space graph.
@@ -535,6 +614,7 @@ def visualize_coarse_graph(
             f"Unknown coarse-graining {coarse}. Choose from {list(coarse_map)}"
         )
     cg = coarse_map[coarse]
+    step_fn = get_rule(rule)
 
     # Get all microstates and their macrostates
     states = enumerate_states(N)
@@ -621,7 +701,7 @@ def visualize_coarse_graph(
     # Title with coarse-graining info
     coarse_display = coarse.capitalize()
     ax.set_title(
-        f"Coarse-Grained Phase Portrait Graph (N={N}, Coarse-graining: {coarse_display})\n"
+        f"Coarse-Grained Phase Portrait Graph (N={N}, Rule-{rule}, {coarse_display})\n"
         f"Macrostates: {len(unique_macros)}, Total microstates: {2**N}\n",
         fontsize=12,
         fontweight="bold",
@@ -650,13 +730,20 @@ def visualize_coarse_graph(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Finite Descriptive Universe simulator (rule-90)."
+        description="Finite Descriptive Universe simulator (elementary cellular automata)."
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_demo = sub.add_parser("demo", help="Run a small simulation and print macro info.")
     p_demo.add_argument("-N", type=int, default=4, help="Number of bits")
     p_demo.add_argument("-t", "--steps", type=int, default=16, help="Number of steps")
+    p_demo.add_argument(
+        "-r",
+        "--rule",
+        type=str,
+        default="90",
+        help="Cellular automaton rule number 0-255 (default: 90)",
+    )
     p_demo.add_argument(
         "-c",
         "--coarse",
@@ -673,16 +760,37 @@ def main():
 
     p_cycles = sub.add_parser("cycles", help="Print cycle decomposition stats.")
     p_cycles.add_argument("-N", type=int, default=4, help="Number of bits")
+    p_cycles.add_argument(
+        "-r",
+        "--rule",
+        type=str,
+        default="90",
+        help="Cellular automaton rule number 0-255 (default: 90)",
+    )
 
     p_graph = sub.add_parser(
         "graph", help="Visualize the microscopic phase space graph."
     )
     p_graph.add_argument("-N", type=int, default=4, help="Number of bits")
+    p_graph.add_argument(
+        "-r",
+        "--rule",
+        type=str,
+        default="90",
+        help="Cellular automaton rule number 0-255 (default: 90)",
+    )
 
     p_coarse_graph = sub.add_parser(
         "coarse-graph", help="Visualize the coarse-grained phase space graph."
     )
     p_coarse_graph.add_argument("-N", type=int, default=4, help="Number of bits")
+    p_coarse_graph.add_argument(
+        "-r",
+        "--rule",
+        type=str,
+        default="90",
+        help="Cellular automaton rule number 0-255 (default: 90)",
+    )
     p_coarse_graph.add_argument(
         "-c",
         "--coarse",
@@ -694,15 +802,15 @@ def main():
 
     args = parser.parse_args()
     if args.cmd == "demo":
-        run_demo(args.N, args.steps, args.coarse)
+        run_demo(args.N, args.steps, args.coarse, args.rule)
         if args.plot:
-            visualize_coarse_graph(args.N, args.coarse)
+            visualize_coarse_graph(args.N, args.coarse, args.rule)
     elif args.cmd == "cycles":
-        print_cycles(args.N)
+        print_cycles(args.N, args.rule)
     elif args.cmd == "graph":
-        visualize_graph(args.N)
+        visualize_graph(args.N, args.rule)
     elif args.cmd == "coarse-graph":
-        visualize_coarse_graph(args.N, args.coarse)
+        visualize_coarse_graph(args.N, args.coarse, args.rule)
 
 
 if __name__ == "__main__":

@@ -1,20 +1,23 @@
 # N-bit Universe
 
-A finite descriptive universe simulator implementing the rule-90 cellular automaton on N bits with comprehensive tools for analyzing microscopic and macroscopic dynamics.
+A finite descriptive universe simulator implementing elementary cellular automata on N bits with comprehensive tools for analyzing microscopic and macroscopic dynamics.
 
 ## Overview
 
-This project implements a **rule-90 cellular automaton** as a finite, deterministic universe where:
+This project implements **any elementary cellular automaton** (rules 0-255) as finite, deterministic universes where:
 
 - States are N-bit binary strings with periodic boundary conditions
 - Evolution is synchronous and deterministic
+- Multiple rule choices enable exploration of different dynamical behaviors
 - The system can be analyzed at both microscopic (individual bits) and macroscopic (coarse-grained) levels
 
 ## Features
 
 ### Core Dynamics
 
-- **Rule-90 Evolution**: Synchronous cellular automaton updates with periodic boundaries
+- **Universal Rule Support**: Any elementary CA rule from 0 to 255 using Wolfram's encoding
+- **Notable Presets**: Rule-30 (chaotic), Rule-90 (additive), Rule-110 (Turing complete), Rule-184 (traffic flow)
+- **Synchronous Evolution**: Deterministic cellular automaton updates with periodic boundaries
 - **Trajectory Generation**: Track system evolution over time
 - **Permutation Analysis**: View the state space as a permutation group with cycle decomposition
 
@@ -50,13 +53,14 @@ pip install numpy
 Run a simulation with macro-level analysis and visualization:
 
 ```bash
-python n-bit_universe.py demo -N 4 -t 16 -c parity
+python n-bit_universe.py demo -N 4 -t 16 -c parity -r 90
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
 - `-t, --steps`: Number of time steps (default: 16)
+- `-r, --rule`: Cellular automaton rule number from **0 to 255** (default: 90)
 - `-c, --coarse`: Coarse-graining method: `parity`, `weight`, or `rotation` (default: parity)
 
 The demo mode provides:
@@ -72,7 +76,7 @@ The demo mode provides:
 Example output:
 
 ```text
-N=4, steps=16, coarse=parity
+N=4, steps=16, rule=90, coarse=parity
 First 10 macrostates along trajectory: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
 Histogram of macrostates on trajectory: {1: 9, 0: 8}
 Macro entropy over trajectory bag (nats): 0.692419
@@ -84,29 +88,31 @@ Markovianly closed? True
 Decompose the permutation into cycles:
 
 ```bash
-python n-bit_universe.py cycles -N 4
+python n-bit_universe.py cycles -N 4 -r 90
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
+- `-r, --rule`: Cellular automaton rule number from **0 to 255** (default: 90)
 
 #### Microscopic Phase Space Visualization
 
 Visualize the complete state space graph showing all microscopic transitions:
 
 ```bash
-python n-bit_universe.py graph -N 4
+python n-bit_universe.py graph -N 4 -r 90
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
+- `-r, --rule`: Cellular automaton rule number from **0 to 255** (default: 90)
 
 Shows a directed graph where:
 
 - Nodes represent individual microstates (bit strings)
-- Edges show the deterministic evolution under rule-90
+- Edges show the deterministic evolution under the selected rule
 - Cycles are visible in the graph structure
 
 #### Coarse-Grained Phase Space Visualization
@@ -147,8 +153,13 @@ python n-bit_universe.py coarse-graph -N 8 -c rotation
 
 ```python
 import numpy as np
-from n-bit_universe import (
+from n_bit_universe import (
+    make_rule_step,  # General rule generator
+    rule30_step,
     rule90_step,
+    rule110_step,
+    rule184_step,
+    get_rule,
     evolve,
     cg_weight,
     cg_parity,
@@ -165,33 +176,100 @@ from n-bit_universe import (
 N = 4
 s0 = int_to_state(1, N)
 
+# Method 1: Use the general rule generator for any rule 0-255
+rule_fn = make_rule_step(110)  # Creates rule-110
+
+# Method 2: Use get_rule() for string-based lookup
+rule_fn = get_rule("110")  # Also works with string
+
+# Method 3: Use preset functions directly
+rule_fn = rule110_step
+
 # Evolve the system
-trajectory = evolve(s0, steps=10, step_fn=rule90_step)
+trajectory = evolve(s0, steps=10, step_fn=rule_fn)
 
 # Apply coarse-graining
 macro_states = [cg_parity(s) for s in trajectory]
 
 # Check if coarse-graining is Markovian
-is_closed = is_markovianly_closed(N, cg_parity, rule90_step)
+is_closed = is_markovianly_closed(N, cg_parity, rule_fn)
 
 # Get induced macro transition matrix
-macro_labels, M = induced_macro_transition_uniform(N, cg_parity, rule90_step)
+macro_labels, M = induced_macro_transition_uniform(N, cg_parity, rule_fn)
 
 # Analyze cycle structure
-cycle_list = cycles(N, rule90_step)
+cycle_list = cycles(N, rule_fn)
+
+# Explore any rule!
+for rule_num in [22, 54, 60, 102, 150, 182]:
+    rule = make_rule_step(rule_num)
+    cycs = cycles(N, rule)
+    print(f"Rule-{rule_num}: {len(cycs)} cycles")
 ```
 
 ## Theory
 
-### Rule-90 Cellular Automaton
+### Wolfram's Elementary Cellular Automaton Encoding
 
-Each bit updates according to:
+Every elementary CA rule is identified by a number from **0 to 255**. The rule number encodes the output for all 8 possible 3-bit neighborhoods:
+
+```text
+Neighborhood:  111  110  101  100  011  010  001  000
+Bit position:   7    6    5    4    3    2    1    0
+Output:      (rule_number >> bit_position) & 1
+```
+
+For example, **Rule-110** = 110₁₀ = 01101110₂:
+
+```text
+Neighborhood:  111  110  101  100  011  010  001  000
+Output:         0    1    1    0    1    1    1    0
+```
+
+So when the neighborhood is `011`, the center cell becomes `1` (bit 3 of 110).
+
+### All Rules are Supported
+
+This simulator implements the **complete space** of 256 elementary CAs. You can:
+
+- Explore well-known rules (30, 90, 110, 184)
+- Discover behavior of lesser-known rules
+- Systematically study rule classes
+- Compare dynamics across the entire rule space
+
+### Notable Rules
+
+#### Rule-30 (Chaotic)
+
+```text
+s'[i] = s[i] ⊕ (s[i-1] OR s[i+1])
+```
+
+Exhibits chaotic behavior and is used in random number generation. Shows complex, unpredictable patterns.
+
+#### Rule-90 (Additive)
 
 ```text
 s'[i] = s[i-1] ⊕ s[i+1]
 ```
 
-where ⊕ is XOR and indices wrap around (periodic boundaries).
+Produces patterns similar to Pascal's triangle modulo 2. Exhibits regular, symmetric structures. This rule is **additive** and has well-understood mathematical properties.
+
+#### Rule-110 (Universal)
+
+```text
+s'[i] = s[i+1] ⊕ (s[i-1] OR s[i])
+```
+
+Proven to be **Turing complete** (capable of universal computation). Shows complex, structured behavior at the "edge of chaos."
+
+#### Rule-184 (Traffic Flow)
+
+```text
+s'[i] = (s[i-1] AND s[i]) OR (s[i] AND NOT s[i+1]) OR (s[i-1] AND NOT s[i+1])
+```
+
+Models **traffic flow** where 1-bits represent cars. Cars move right if the space ahead is empty. Used in studying traffic dynamics and particle systems.
 
 ### Coarse-Graining and Emergence
 
@@ -211,29 +289,67 @@ For finite N, the dynamics form a permutation of the 2^N possible states. The cy
 
 ## Examples
 
-### Example 1: Checking Different Coarse-Grainings
+### Example 1: Exploring Arbitrary Rules
 
 ```python
-N = 5
+from n_bit_universe import make_rule_step, evolve, int_to_state, cycles
 
-# Check if parity is Markovian
-print(f"Parity closed: {is_markovianly_closed(N, cg_parity)}")
+N = 6
+s0 = int_to_state(1, N)
 
-# Check if weight is Markovian
-print(f"Weight closed: {is_markovianly_closed(N, cg_weight)}")
-
-# Check if rotation class is Markovian
-print(f"Rotation closed: {is_markovianly_closed(N, cg_rotation_class)}")
+# Systematically explore rules
+for rule_num in range(0, 256, 10):  # Sample every 10th rule
+    rule_fn = make_rule_step(rule_num)
+    cycs = cycles(N, rule_fn)
+    lengths = sorted(len(c) for c in cycs)
+    print(f"Rule-{rule_num:3d}: {len(cycs):2d} cycles, lengths {lengths[:5]}...")
 ```
 
-### Example 2: Exploring Trajectories
+### Example 2: Comparing Rules
 
 ```python
-# Start from different initial conditions
+from n_bit_universe import get_rule, evolve, int_to_state, cycles
+
 N = 6
+s0 = int_to_state(1, N)
+
+# Compare cycle structures across rules
+for rule_name in ["30", "90", "110", "184"]:
+    rule_fn = get_rule(rule_name)
+    cycs = cycles(N, rule_fn)
+    lengths = sorted(len(c) for c in cycs)
+    print(f"Rule-{rule_name}: {len(cycs)} cycles with lengths {lengths}")
+```
+
+### Example 3: Checking Different Coarse-Grainings
+
+```python
+from n_bit_universe import (
+    cg_parity, cg_weight, cg_rotation_class,
+    is_markovianly_closed, get_rule
+)
+
+N = 5
+rule_fn = get_rule("110")
+
+# Check which coarse-grainings are Markovian for rule-110
+print(f"Parity closed: {is_markovianly_closed(N, cg_parity, rule_fn)}")
+print(f"Weight closed: {is_markovianly_closed(N, cg_weight, rule_fn)}")
+print(f"Rotation closed: {is_markovianly_closed(N, cg_rotation_class, rule_fn)}")
+```
+
+### Example 4: Exploring Trajectories
+
+```python
+from n_bit_universe import evolve, int_to_state, state_to_int, get_rule
+
+# Compare trajectory periods for different rules
+N = 6
+rule_fn = get_rule("184")  # Traffic flow rule
+
 for initial_value in [1, 7, 15, 63]:
     s0 = int_to_state(initial_value, N)
-    traj = evolve(s0, steps=20)
+    traj = evolve(s0, steps=50, step_fn=rule_fn)
     
     # Find period
     visited = {}
@@ -270,9 +386,21 @@ Feel free to extend this simulator with:
 
 ## References
 
-Rule-90 is a well-studied elementary cellular automaton (Wolfram's classification). This implementation focuses on:
+Elementary cellular automata are well-studied dynamical systems (Wolfram's classification). This implementation provides:
 
+**Complete rule space access (0-255)** with focus on:
+
+- **Rule-30**: Chaotic behavior and randomness
+- **Rule-90**: Additive dynamics and Pascal's triangle patterns  
+- **Rule-110**: Universal computation and edge of chaos
+- **Rule-184**: Traffic flow and particle transport
+
+Key themes:
+
+- Complete elementary CA rule space (all 256 rules)
+- Wolfram's encoding and classification
 - Finite universes (small N)
 - Information theory perspectives
 - Coarse-graining and emergence
 - Markovian closure (lumpability in stochastic processes)
+- Comparative dynamical analysis across rule space
