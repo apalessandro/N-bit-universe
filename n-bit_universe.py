@@ -502,8 +502,7 @@ def visualize_graph(N: int, step_fn: StepFn = rule90_step) -> None:
     nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight="bold", ax=ax)
 
     ax.set_title(
-        f"Microscopic Phase Space Graph for N={N}\n"
-        f"$|\\Omega| = 2^{{{N}}} = {2**N}$ states",
+        f"Phase Portrait Graph for N={N}\n$|\\Omega| = 2^{{{N}}} = {2**N}$ states",
         fontsize=14,
         fontweight="bold",
     )
