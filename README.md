@@ -126,8 +126,8 @@ Features:
 
 - **Node size**: Proportional to the number of microstates in each macrostate (capped at maximum size)
 - **Node labels**: Show macrostate value and microstate count
-- **Edge width**: Proportional to transition probability
-- **Edge labels**: Display the number of microstates making each transition
+- **Edges**: Show transitions between macrostates
+- **Edge labels**: Display the number of microstates making each transition (acts as the weight)
 - Automatically tests for Markovian closure
 
 Example:

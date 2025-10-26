@@ -344,11 +344,6 @@ def _visualize_demo_trajectory(
     )
 
     # Draw edges
-    edges = G.edges()
-    weights = [G[u][v]["weight"] for u, v in edges]
-    max_weight = max(weights) if weights else 1
-    edge_widths = [2 + 3 * (w / max_weight) for w in weights]
-
     nx.draw_networkx_edges(
         G,
         pos,
@@ -356,7 +351,7 @@ def _visualize_demo_trajectory(
         arrows=True,
         arrowsize=20,
         arrowstyle="->",
-        width=edge_widths,
+        width=2.5,
         ax=ax_graph,
         connectionstyle="arc3,rad=0.1",
         alpha=0.3,
@@ -599,12 +594,6 @@ def visualize_coarse_graph(
         G, pos, node_color="lightcoral", node_size=node_sizes, alpha=0.7, ax=ax
     )
 
-    # Draw edges with varying width based on weight
-    edges = G.edges()
-    weights = [G[u][v]["weight"] for u, v in edges]
-    max_weight = max(weights) if weights else 1
-    edge_widths = [2 + 3 * (w / max_weight) for w in weights]
-
     nx.draw_networkx_edges(
         G,
         pos,
@@ -612,7 +601,7 @@ def visualize_coarse_graph(
         arrows=True,
         arrowsize=20,
         arrowstyle="->",
-        width=edge_widths,
+        width=2.5,
         ax=ax,
         connectionstyle="arc3,rad=0.1",
     )
