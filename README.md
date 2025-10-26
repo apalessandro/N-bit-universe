@@ -16,7 +16,6 @@ This project implements **any elementary cellular automaton** (rules 0-255) as f
 ### Core Dynamics
 
 - **Universal Rule Support**: Any elementary CA rule from 0 to 255 using Wolfram's encoding
-- **Notable Presets**: Rule-30 (chaotic), Rule-90 (additive), Rule-110 (Turing complete), Rule-184 (traffic flow)
 - **Synchronous Evolution**: Deterministic cellular automaton updates with periodic boundaries
 - **Trajectory Generation**: Track system evolution over time
 - **Permutation Analysis**: View the state space as a permutation group with cycle decomposition
@@ -227,15 +226,6 @@ Output:         0    1    1    0    1    1    1    0
 ```
 
 So when the neighborhood is `011`, the center cell becomes `1` (bit 3 of 110).
-
-### All Rules are Supported
-
-This simulator implements the **complete space** of 256 elementary CAs. You can:
-
-- Explore well-known rules (30, 90, 110, 184)
-- Discover behavior of lesser-known rules
-- Systematically study rule classes
-- Compare dynamics across the entire rule space
 
 ### Notable Rules
 
