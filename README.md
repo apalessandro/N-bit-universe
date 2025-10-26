@@ -28,6 +28,66 @@ Three built-in macroscopic descriptions:
 2. **Parity**: Even/odd number of 1-bits
 3. **Rotation Class**: Equivalence class under cyclic rotations
 
+You can also supply an arbitrary partition of the microscopic state space (all 2^N bitstrings) and treat its blocks as macrostates. This lets you explore descriptive phase spaces beyond the built-ins.
+
+Add `-c custom --groups <SPEC>` where `<SPEC>` is either:
+
+1. A path to a JSON file, or
+2. An inline JSON string.
+
+Accepted JSON formats:
+
+**Mapping form** (explicit labels):
+
+```json
+{
+    "Low": ["000", "001", 2],
+    "Mid": ["011", "010"],
+    "High": [4, 5, 6, 7]
+}
+```
+
+**List form** (labels become "0", "1", ... automatically):
+
+```json
+[
+    ["000", "001", "010"],
+    ["011", "100"],
+    ["101", "110", "111"]
+]
+```
+
+Elements inside groups can be:
+
+- Bit strings of length N (e.g. `"0101"` for N=4)
+- Integers (e.g. `13`) or numeric strings (`"13"`) representing the integer encoding of the bitstring.
+
+Validation rules:
+
+- Every one of the `2^N` microstates must appear **exactly once** (full partition)
+- Duplicates or omissions raise an error with helpful hints
+- Labels are arbitrary strings (mapping form) or auto-generated indices (list form)
+
+Example (inline JSON):
+
+```bash
+python n-bit_universe.py coarse-graph -N 3 -c custom --groups '{"A":["000","001"],"B":["010","011"],"C":["100","101","110","111"]}'
+```
+
+Example (file):
+
+```bash
+python n-bit_universe.py coarse-graph -N 4 -c custom --groups custom_partition_example.json
+```
+
+You can also use `demo` mode:
+
+```bash
+python n-bit_universe.py demo -N 3 -t 12 -r 90 -c custom --groups '{"even-weight":[0,3,5,6],"odd-weight":[1,2,4,7]}' --plot
+```
+
+Returned macro labels (e.g. `"A"`, `"High"`, or `"2"`) integrate seamlessly with entropy computations, transition matrix construction, Markovian closure tests, and visualization.
+
 ### Analysis Tools
 
 - **Entropy Calculations**: Shannon entropy for microscopic and macroscopic distributions (natural logs)
@@ -60,7 +120,8 @@ Options:
 - `-N`: Number of bits (default: 4)
 - `-t, --steps`: Number of time steps (default: 16)
 - `-r, --rule`: Cellular automaton rule number from **0 to 255** (default: 90)
-- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, or `rotation` (default: parity)
+- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, `rotation`, or `custom` (default: parity)
+- `--groups`: (Required when `-c custom`) JSON string or path specifying a full partition of the 2^N microstates.
 
 The demo mode provides:
 
@@ -125,7 +186,8 @@ python n-bit_universe.py coarse-graph -N 8 -c rotation
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, or `rotation` (default: parity)
+- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, `rotation`, or `custom` (default: parity)
+- `--groups`: (Required when `-c custom`) JSON string or path specifying a full partition.
 
 Features:
 
@@ -135,7 +197,7 @@ Features:
 - **Edge labels**: Display the number of microstates making each transition (acts as the weight)
 - Automatically tests for Markovian closure
 
-Example:
+Examples:
 
 ```bash
 # Visualize with parity coarse-graining
@@ -146,6 +208,12 @@ python n-bit_universe.py coarse-graph -N 8 -c weight
 
 # Visualize with rotation classes
 python n-bit_universe.py coarse-graph -N 8 -c rotation
+
+# Visualize with a custom partition (inline JSON)
+python n-bit_universe.py coarse-graph -N 3 -c custom --groups '{"left":["000","001"],"middle":["010","011"],"right":["100","101","110","111"]}'
+
+# Visualize with a custom partition from file
+python n-bit_universe.py coarse-graph -N 4 -c custom --groups custom_partition_example.json
 ```
 
 ### Python API

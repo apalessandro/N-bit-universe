@@ -174,3 +174,31 @@ for r in 22 54 60 90 110 126 150 182; do
     python n-bit_universe.py coarse-graph -N 6 -c parity -r $r
 done
 ```
+
+### NEW: Custom Coarse-Graining Examples
+
+Inline JSON specifying a partition (N=3 has 8 states 000..111):
+
+```bash
+python n-bit_universe.py coarse-graph -N 3 -c custom --groups '{"Group1":["000","001"],"Group2":["010","011"],"Rest":["100","101","110","111"]}'
+```
+
+Using integer encodings mixed with bitstrings:
+
+```bash
+python n-bit_universe.py demo -N 3 -t 10 -c custom --groups '{"A":[0,1],"B":["010","011"],"C":[4,5,6,7]}'
+```
+
+List form (labels auto-assigned as 0,1,2,...):
+
+```bash
+python n-bit_universe.py demo -N 3 -t 10 -c custom --groups '[["000","001"],["010","011"],["100","101","110","111"]]'
+```
+
+From file:
+
+```bash
+python n-bit_universe.py coarse-graph -N 4 -c custom --groups custom_partition_example.json
+```
+
+If a state is missing or duplicated you'll get an error pointing out missing / duplicate assignments so you can fix the partition quickly.

@@ -13,7 +13,9 @@ Implements:
 
 from __future__ import annotations
 import argparse
+import json
 import math
+import os
 from collections import Counter, defaultdict
 from typing import Callable, Dict, Iterable, List, Sequence, Tuple
 
@@ -297,18 +299,31 @@ def is_markovianly_closed(
 # ----------------------------
 
 
-def run_demo(N: int, steps: int, coarse: str, rule: str = "90") -> None:
-    """Small demo printing macro entropy over time and visualizing trajectory on coarse-grained graph."""
+def run_demo(
+    N: int,
+    steps: int,
+    coarse: str,
+    rule: str = "90",
+    cg_override: CoarseFn | None = None,
+) -> None:
+    """Small demo printing macro entropy over time and visualizing trajectory on coarse-grained graph.
+
+    If ``cg_override`` is provided it is used directly (allowing custom user partitions).
+    """
     coarse_map: Dict[str, CoarseFn] = {
         "weight": cg_weight,
         "parity": cg_parity,
         "rotation": cg_rotation_class,
+        # 'custom' handled separately
     }
-    if coarse not in coarse_map:
-        raise ValueError(
-            f"Unknown coarse-graining {coarse}. Choose from {list(coarse_map)}"
-        )
-    cg = coarse_map[coarse]
+    if cg_override is not None:
+        cg = cg_override
+    else:
+        if coarse not in coarse_map:
+            raise ValueError(
+                f"Unknown coarse-graining {coarse}. Choose from {list(coarse_map) + ['custom']}"
+            )
+        cg = coarse_map[coarse]
     step_fn = get_rule(rule)
 
     s0 = int_to_state(1, N)  # start from 00..01
@@ -598,6 +613,7 @@ def visualize_coarse_graph(
     N: int,
     coarse: str,
     rule: str = "90",
+    cg_override: CoarseFn | None = None,
 ) -> None:
     """
     Visualize the coarse-grained phase space graph.
@@ -608,12 +624,16 @@ def visualize_coarse_graph(
         "weight": cg_weight,
         "parity": cg_parity,
         "rotation": cg_rotation_class,
+        # 'custom' handled separately
     }
-    if coarse not in coarse_map:
-        raise ValueError(
-            f"Unknown coarse-graining {coarse}. Choose from {list(coarse_map)}"
-        )
-    cg = coarse_map[coarse]
+    if cg_override is not None:
+        cg = cg_override
+    else:
+        if coarse not in coarse_map:
+            raise ValueError(
+                f"Unknown coarse-graining {coarse}. Choose from {list(coarse_map) + ['custom']}"
+            )
+        cg = coarse_map[coarse]
     step_fn = get_rule(rule)
 
     # Get all microstates and their macrostates
@@ -728,6 +748,119 @@ def visualize_coarse_graph(
 # ----------------------------
 
 
+def _parse_custom_partition(spec: str, N: int) -> CoarseFn:
+    """Parse a user supplied partition of the 2**N microstates and return a coarse function.
+
+    The *spec* can be either:
+      1. A path to a JSON file
+      2. An inline JSON string
+
+    Accepted JSON formats:
+      - Mapping form: {"labelA": ["000", 3, "5"], "labelB": [...], ...}
+      - List form: [["000", 1], ["010", "011"], ...]  (labels become "0", "1", ...)
+
+    Microstates inside groups can be:
+      * Bit strings of length N (e.g. "0101")
+      * Integers (e.g. 5) or numeric strings ("5") representing the integer encoding
+
+    Validation ensures the groups form a *partition*: every of the 2**N states
+    appears in exactly one group. Duplicate or missing states raise ValueError.
+    """
+    # Load text
+    if os.path.exists(spec):
+        with open(spec, "r", encoding="utf-8") as f:
+            text = f.read()
+    else:
+        text = spec
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"Failed to parse custom grouping JSON (position {e.pos}): {e.msg}"
+        ) from e
+
+    # Normalize to list of (label, list_of_state_ints)
+    groups: List[Tuple[str, List[int]]] = []
+    if isinstance(data, dict):
+        for label, members in data.items():
+            if not isinstance(members, list):
+                raise ValueError(
+                    f"Group '{label}' must map to a list, got {type(members)}"
+                )
+            groups.append((str(label), members))
+    elif isinstance(data, list):
+        for i, members in enumerate(data):
+            if not isinstance(members, list):
+                raise ValueError(
+                    f"Element {i} of top-level list must be a list (group), got {type(members)}"
+                )
+            groups.append((str(i), members))
+    else:
+        raise ValueError(
+            "Custom grouping JSON must be dict or list. See README for accepted formats."
+        )
+
+    total_states = 2**N
+    all_states_set = set(range(total_states))
+    seen: Dict[int, str] = {}
+    int_to_label: Dict[int, str] = {}
+
+    def parse_member(m) -> int:
+        if isinstance(m, int):
+            return m
+        if isinstance(m, str):
+            m_str = m.strip()
+            if set(m_str).issubset({"0", "1"}) and len(m_str) == N:
+                # Bitstring form
+                val = 0
+                for ch in m_str:
+                    val = (val << 1) | int(ch)
+                return val
+            # Try as integer literal
+            try:
+                return int(m_str)
+            except ValueError:
+                raise ValueError(
+                    f"Cannot interpret member '{m}' as bitstring of length {N} or integer"
+                )
+        raise ValueError(f"Unsupported member type: {type(m)} for {m}")
+
+    for label, members in groups:
+        for m in members:
+            val = parse_member(m)
+            if not (0 <= val < total_states):
+                raise ValueError(
+                    f"State value {val} (from {m}) out of range for N={N} (0..{total_states - 1})"
+                )
+            if val in seen:
+                raise ValueError(
+                    f"Duplicate assignment: state {val} already in group '{seen[val]}', cannot also be in '{label}'"
+                )
+            seen[val] = label
+            int_to_label[val] = label
+
+    missing = all_states_set.difference(seen.keys())
+    if missing:
+        # Provide a helpful hint by showing a few missing states in both int and bitstring forms
+        sample = sorted(list(missing))[:5]
+
+        def fmt(v: int) -> str:
+            return bin(v)[2:].zfill(N)
+
+        raise ValueError(
+            "Custom grouping is not a full partition. Missing states: "
+            + ", ".join(f"{v} ('{fmt(v)}')" for v in sample)
+            + ("..." if len(missing) > 5 else "")
+        )
+
+    # Build coarse function closure
+    def custom_cg(s: State) -> str:
+        idx = state_to_int(s)
+        return int_to_label[idx]
+
+    return custom_cg
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Finite Descriptive Universe simulator (elementary cellular automata)."
@@ -749,8 +882,13 @@ def main():
         "--coarse",
         type=str,
         default="parity",
-        choices=["parity", "weight", "rotation"],
-        help="Coarse-graining",
+        choices=["parity", "weight", "rotation", "custom"],
+        help="Coarse-graining (add 'custom' with --groups to specify an arbitrary partition)",
+    )
+    p_demo.add_argument(
+        "--groups",
+        type=str,
+        help="Custom grouping specification (JSON string or path). Required if -c custom.",
     )
     p_demo.add_argument(
         "--plot",
@@ -796,21 +934,38 @@ def main():
         "--coarse",
         type=str,
         default="parity",
-        choices=["parity", "weight", "rotation"],
-        help="Coarse-graining",
+        choices=["parity", "weight", "rotation", "custom"],
+        help="Coarse-graining (add 'custom' with --groups to specify an arbitrary partition)",
+    )
+    p_coarse_graph.add_argument(
+        "--groups",
+        type=str,
+        help="Custom grouping specification (JSON string or path). Required if -c custom.",
     )
 
     args = parser.parse_args()
     if args.cmd == "demo":
-        run_demo(args.N, args.steps, args.coarse, args.rule)
+        cg_override = None
+        if args.coarse == "custom":
+            if not args.groups:
+                raise SystemExit("--groups is required when using -c custom")
+            cg_override = _parse_custom_partition(args.groups, args.N)
+        run_demo(args.N, args.steps, args.coarse, args.rule, cg_override=cg_override)
         if args.plot:
-            visualize_coarse_graph(args.N, args.coarse, args.rule)
+            visualize_coarse_graph(
+                args.N, args.coarse, args.rule, cg_override=cg_override
+            )
     elif args.cmd == "cycles":
         print_cycles(args.N, args.rule)
     elif args.cmd == "graph":
         visualize_graph(args.N, args.rule)
     elif args.cmd == "coarse-graph":
-        visualize_coarse_graph(args.N, args.coarse, args.rule)
+        cg_override = None
+        if args.coarse == "custom":
+            if not args.groups:
+                raise SystemExit("--groups is required when using -c custom")
+            cg_override = _parse_custom_partition(args.groups, args.N)
+        visualize_coarse_graph(args.N, args.coarse, args.rule, cg_override=cg_override)
 
 
 if __name__ == "__main__":
