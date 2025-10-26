@@ -373,34 +373,3 @@ for initial_value in [1, 7, 15, 63]:
 ## License
 
 This project is provided as-is for educational and research purposes.
-
-## Contributing
-
-Feel free to extend this simulator with:
-
-- Additional cellular automaton rules
-- New coarse-graining functions
-- Different boundary conditions
-- Visualization tools
-- Performance optimizations for larger N
-
-## References
-
-Elementary cellular automata are well-studied dynamical systems (Wolfram's classification). This implementation provides:
-
-**Complete rule space access (0-255)** with focus on:
-
-- **Rule-30**: Chaotic behavior and randomness
-- **Rule-90**: Additive dynamics and Pascal's triangle patterns  
-- **Rule-110**: Universal computation and edge of chaos
-- **Rule-184**: Traffic flow and particle transport
-
-Key themes:
-
-- Complete elementary CA rule space (all 256 rules)
-- Wolfram's encoding and classification
-- Finite universes (small N)
-- Information theory perspectives
-- Coarse-graining and emergence
-- Markovian closure (lumpability in stochastic processes)
-- Comparative dynamical analysis across rule space
