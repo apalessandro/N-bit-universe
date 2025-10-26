@@ -633,8 +633,7 @@ def visualize_coarse_graph(
     coarse_display = coarse.capitalize()
     ax.set_title(
         f"Coarse-Grained Phase Portrait Graph (N={N}, Coarse-graining: {coarse_display})\n"
-        f"Macrostates: {len(unique_macros)}, Total microstates: {2**N}\n"
-        f"Node labels show: macrostate value (microstate count)",
+        f"Macrostates: {len(unique_macros)}, Total microstates: {2**N}\n",
         fontsize=12,
         fontweight="bold",
     )
