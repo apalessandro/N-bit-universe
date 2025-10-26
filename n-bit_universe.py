@@ -151,6 +151,28 @@ def cg_rotation_class(s: State) -> Tuple[int, ...]:
     return _min_rotation(tuple(int(x) for x in s.tolist()))
 
 
+def cg_prefix_nminus1(s: State) -> str:
+    """Coarse-graining that keeps the first N-1 bits (prefix) and forgets the last bit.
+
+    For state s = (s0, s1, ..., s_{N-2}, s_{N-1}) with N>=2 returns the string
+    label: s0 s1 ... s_{N-2}. Thus there are exactly 2^{N-1} macrostates, each
+    containing 2 microstates differing only in the final bit.
+
+    Examples:
+        N=4, s = 1 0 1 1 -> "101"
+        N=2, s = 0 1     -> "0"  (two macrostates: "0" and "1")
+
+    Rationale: This is a simple local projection that discards one site and is
+    a direct generalization of the earlier first-two-bits idea; it yields a
+    uniform block size of 2 across all macrostates.
+    """
+    N = s.shape[0]
+    if N < 2:
+        raise ValueError("cg_prefix_nminus1 requires N>=2")
+    # Join all but last bit
+    return ''.join(str(int(b)) for b in s[:-1])
+
+
 # ----------------------------
 # Entropy utilities (natural logs)
 # ----------------------------
@@ -314,6 +336,7 @@ def run_demo(
         "weight": cg_weight,
         "parity": cg_parity,
         "rotation": cg_rotation_class,
+        "prefix": cg_prefix_nminus1,
         # 'custom' handled separately
     }
     if cg_override is not None:
@@ -624,6 +647,7 @@ def visualize_coarse_graph(
         "weight": cg_weight,
         "parity": cg_parity,
         "rotation": cg_rotation_class,
+        "prefix": cg_prefix_nminus1,
         # 'custom' handled separately
     }
     if cg_override is not None:
@@ -882,7 +906,7 @@ def main():
         "--coarse",
         type=str,
         default="parity",
-        choices=["parity", "weight", "rotation", "custom"],
+        choices=["parity", "weight", "rotation", "prefix", "custom"],
         help="Coarse-graining (add 'custom' with --groups to specify an arbitrary partition)",
     )
     p_demo.add_argument(
@@ -934,7 +958,7 @@ def main():
         "--coarse",
         type=str,
         default="parity",
-        choices=["parity", "weight", "rotation", "custom"],
+        choices=["parity", "weight", "rotation", "prefix", "custom"],
         help="Coarse-graining (add 'custom' with --groups to specify an arbitrary partition)",
     )
     p_coarse_graph.add_argument(

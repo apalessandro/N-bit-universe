@@ -22,11 +22,12 @@ This project implements **any elementary cellular automaton** (rules 0-255) as f
 
 ### Coarse-Graining Methods
 
-Three built-in macroscopic descriptions:
+Four built-in macroscopic descriptions:
 
 1. **Hamming Weight**: Count of 1-bits in the state
 2. **Parity**: Even/odd number of 1-bits
 3. **Rotation Class**: Equivalence class under cyclic rotations
+4. **Prefix (first N−1 bits)**: Drops only the final bit
 
 You can also supply an arbitrary partition of the microscopic state space (all 2^N bitstrings) and treat its blocks as macrostates. This lets you explore descriptive phase spaces beyond the built-ins.
 
@@ -120,7 +121,7 @@ Options:
 - `-N`: Number of bits (default: 4)
 - `-t, --steps`: Number of time steps (default: 16)
 - `-r, --rule`: Cellular automaton rule number from **0 to 255** (default: 90)
-- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, `rotation`, or `custom` (default: parity)
+- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, `rotation`, `prefix`, or `custom` (default: parity)
 - `--groups`: (Required when `-c custom`) JSON string or path specifying a full partition of the 2^N microstates.
 
 The demo mode provides:
@@ -186,7 +187,7 @@ python n-bit_universe.py coarse-graph -N 8 -c rotation
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, `rotation`, or `custom` (default: parity)
+- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, `rotation`, `prefix`, or `custom` (default: parity)
 - `--groups`: (Required when `-c custom`) JSON string or path specifying a full partition.
 
 Features:
