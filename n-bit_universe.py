@@ -1,8 +1,8 @@
 """
 Finite Descriptive Universe: elementary cellular automaton on N bits.
 Implements:
-  - Any elementary cellular automaton rule (0-255) via Wolfram encoding
   - Deterministic synchronous updates with periodic boundary conditions
+  - Any elementary cellular automaton rule (0-255) via Wolfram encoding
   - Custom coarse-grainings via JSON specification
   - Microscopic and macroscopic entropy (natural logs)
   - Induced macro transition operator (uniform over microstates within a macrocell)
