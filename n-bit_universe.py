@@ -1018,7 +1018,7 @@ def _compute_layout(G: nx.Graph, layout: str) -> Dict[object, np.ndarray]:
                 pass
     except Exception:
         pass
-    return nx.spring_layout(G, k=3, iterations=200, seed=42)
+    return nx.spring_layout(G, k=None, iterations=300, seed=42)
 
 
 if __name__ == "__main__":
