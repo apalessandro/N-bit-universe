@@ -16,6 +16,7 @@ This project implements **any deterministic rule** on N-bit states as finite uni
 ### Core Dynamics
 
 - **General Rule Support**: Any deterministic rule specified as space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (e.g., "2 3 0 1" for N=2)
+- **Elementary Cellular Automaton Support**: Built-in `--eca` flag to automatically generate the full 2^N mapping from any ECA rule number (0-255), eliminating the need to hand-type permutations for standard rules like Rule 90, Rule 110, etc.
 - **Synchronous Evolution**: Deterministic cellular automaton updates with periodic boundaries
 - **Trajectory Generation**: Track system evolution over time
 - **Permutation Analysis**: View the state space as a permutation group with cycle decomposition
@@ -107,13 +108,17 @@ Run a simulation with macro-level analysis and visualization:
 
 ```bash
 python n-bit_universe.py demo -N 4 -t 16 -r "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15" --groups custom_partition_example.json
+
+# Or use the --eca flag for elementary cellular automaton rules:
+python n-bit_universe.py demo -N 4 -t 16 --eca 90 --groups custom_partition_example.json
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
 - `-t, --steps`: Number of time steps (default: 16)
-- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (required, e.g. "2 3 0 1" for N=2)
+- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (e.g. "2 3 0 1" for N=2)
+- `--eca RULE_NUM`: Elementary cellular automaton rule number (0-255). Automatically generates the full 2^N mapping. Mutually exclusive with `-r`.
 - `--groups`: JSON string or path specifying a full partition of the 2^N microstates (required)
 
 The demo mode provides:
@@ -142,12 +147,16 @@ Decompose the permutation into cycles:
 
 ```bash
 python n-bit_universe.py cycles -N 4 -r "0 1 2 3"
+
+# Or use --eca for elementary cellular automaton rules:
+python n-bit_universe.py cycles -N 4 --eca 90
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (required)
+- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image
+- `--eca RULE_NUM`: Elementary cellular automaton rule number (0-255). Mutually exclusive with `-r`.
 
 #### Microscopic Phase Space Visualization
 
@@ -155,12 +164,16 @@ Visualize the complete state space graph showing all microscopic transitions:
 
 ```bash
 python n-bit_universe.py graph -N 4 -r "0 1 2 3"
+
+# Or use --eca for elementary cellular automaton rules:
+python n-bit_universe.py graph -N 4 --eca 110
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (required)
+- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image
+- `--eca RULE_NUM`: Elementary cellular automaton rule number (0-255). Mutually exclusive with `-r`.
 
 Shows a directed graph where:
 
@@ -174,12 +187,16 @@ Visualize the macroscopic state space with custom coarse-graining:
 
 ```bash
 python n-bit_universe.py coarse-graph -N 8 -r "0 1 2 3 4 5 6 7" --groups custom_partition_example.json
+
+# Or use --eca for elementary cellular automaton rules:
+python n-bit_universe.py coarse-graph -N 8 --eca 30 --groups custom_partition_example.json
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (required, e.g. "0 1 2 3 4 5 6 7" for N=3)
+- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (e.g. "0 1 2 3 4 5 6 7" for N=3)
+- `--eca RULE_NUM`: Elementary cellular automaton rule number (0-255). Mutually exclusive with `-r`.
 - `--groups`: JSON string or path specifying a full partition (required)
 
 Features:
@@ -198,7 +215,26 @@ python n-bit_universe.py coarse-graph -N 3 -r "0 1 2 3 4 5 6 7" --groups '{"left
 
 # Visualize with a custom partition from file
 python n-bit_universe.py coarse-graph -N 4 -r "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15" --groups custom_partition_example.json
+
+# Using --eca with Rule 90
+python n-bit_universe.py coarse-graph -N 5 --eca 90 --groups custom_partition_example.json
 ```
+
+### Using the --eca Flag
+
+The `--eca` flag provides a convenient way to use elementary cellular automaton rules without manually typing the full permutation string. Simply specify the ECA rule number (0-255) and the system automatically generates the complete 2^N→2^N mapping.
+
+**Example - Rule 90:**
+
+```bash
+# Instead of manually typing the full permutation:
+python n-bit_universe.py cycles -N 5 -r "0 15 30 17 60 51 34 49 120 119 102 113 68 83 98 85"
+
+# Simply use:
+python n-bit_universe.py cycles -N 5 --eca 90
+```
+
+The `--eca` flag works with all commands (`demo`, `cycles`, `graph`, `coarse-graph`) and is mutually exclusive with the `-r/--rule` option.
 
 ## Theory
 
