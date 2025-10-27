@@ -303,6 +303,7 @@ def run_demo(
     cg_func: CoarseFn,
     rule_str: str,
     eca_rule_num: int | None = None,
+    layout: str = "spring",
 ) -> None:
     """Small demo printing macro entropy over time and visualizing trajectory on coarse-grained graph.
 
@@ -354,7 +355,9 @@ def run_demo(
         print(f"to {labels[i]}: " + " ".join(f"{x:.3f}" for x in row))
 
     # Visualize the trajectory on the coarse-grained graph
-    _visualize_demo_trajectory(N, cg, macs, entropies, step_fn, rule_str, eca_rule_num)
+    _visualize_demo_trajectory(
+        N, cg, macs, entropies, step_fn, rule_str, eca_rule_num, layout=layout
+    )
 
 
 def _visualize_demo_trajectory(
@@ -365,6 +368,7 @@ def _visualize_demo_trajectory(
     step_fn: StepFn,
     rule: str,
     eca_rule_num: int | None = None,
+    layout: str = "spring",
 ) -> None:
     """
     Visualize the trajectory on the coarse-grained phase space graph with entropy plot.
@@ -413,7 +417,7 @@ def _visualize_demo_trajectory(
     ax_entropy = fig.add_subplot(gs[1])
 
     # Layout
-    pos = nx.spring_layout(G, k=3, iterations=200, seed=42)
+    pos = _compute_layout(G, layout)
 
     # Node sizes
     max_node_size = 3000
@@ -539,7 +543,9 @@ def print_cycles(N: int, rule_str: str, eca_rule_num: int | None = None) -> None
             print([bin(x)[2:].zfill(N) for x in c])
 
 
-def visualize_graph(N: int, rule_str: str, eca_rule_num: int | None = None) -> None:
+def visualize_graph(
+    N: int, rule_str: str, eca_rule_num: int | None = None, layout: str = "spring"
+) -> None:
     """
     Visualize the directed graph of the microscopic phase space.
     Nodes are bit strings and edges connect each configuration to its successor under T.
@@ -563,7 +569,7 @@ def visualize_graph(N: int, rule_str: str, eca_rule_num: int | None = None) -> N
     # Create figure
     fig, ax = plt.subplots(figsize=(12, 10))
 
-    pos = nx.spring_layout(G, k=3, iterations=200, seed=42)
+    pos = _compute_layout(G, layout)
 
     # Draw the graph
     nx.draw_networkx_nodes(G, pos, node_color="lightblue", node_size=800, ax=ax)
@@ -611,6 +617,7 @@ def visualize_coarse_graph(
     cg_func: CoarseFn,
     rule_str: str,
     eca_rule_num: int | None = None,
+    layout: str = "spring",
 ) -> None:
     """
     Visualize the coarse-grained phase space graph.
@@ -672,7 +679,7 @@ def visualize_coarse_graph(
     # Create figure
     fig, ax = plt.subplots(figsize=(14, 10))
 
-    pos = nx.spring_layout(G, k=3, iterations=200, seed=42)
+    pos = _compute_layout(G, layout)
 
     # Node sizes proportional to number of microstates with a maximum cap
     max_node_size = 3000  # Maximum size for the red ball
@@ -885,6 +892,13 @@ def main():
         action="store_true",
         help="Show coarse-grained phase space graph",
     )
+    # Layout option (shared with graph visual commands)
+    p_demo.add_argument(
+        "--layout",
+        type=str,
+        default="spring",
+        help="Layout algorithm for trajectory coarse graph when --plot is used (spring, circular, shell, kamada, spectral, planar).",
+    )
 
     p_cycles = sub.add_parser("cycles", help="Print cycle decomposition stats.")
     p_cycles.add_argument("-N", type=int, default=4, help="Number of bits")
@@ -906,6 +920,12 @@ def main():
         "graph", help="Visualize the microscopic phase space graph."
     )
     p_graph.add_argument("-N", type=int, default=4, help="Number of bits")
+    p_graph.add_argument(
+        "--layout",
+        type=str,
+        default="spring",
+        help="Graph layout algorithm (spring, circular, shell, kamada, spectral, planar).",
+    )
     graph_rule_group = p_graph.add_mutually_exclusive_group(required=True)
     graph_rule_group.add_argument(
         "-r",
@@ -924,6 +944,12 @@ def main():
         "coarse-graph", help="Visualize the coarse-grained phase space graph."
     )
     p_coarse_graph.add_argument("-N", type=int, default=4, help="Number of bits")
+    p_coarse_graph.add_argument(
+        "--layout",
+        type=str,
+        default="spring",
+        help="Graph layout algorithm (spring, circular, shell, kamada, spectral, planar).",
+    )
     coarse_rule_group = p_coarse_graph.add_mutually_exclusive_group(required=True)
     coarse_rule_group.add_argument(
         "-r",
@@ -952,16 +978,47 @@ def main():
 
     if args.cmd == "demo":
         cg_func = _parse_custom_partition(args.groups, args.N)
-        run_demo(args.N, args.steps, cg_func, args.rule, args.eca)
+        run_demo(args.N, args.steps, cg_func, args.rule, args.eca, layout=args.layout)
         if args.plot:
-            visualize_coarse_graph(args.N, cg_func, args.rule, args.eca)
+            visualize_coarse_graph(
+                args.N, cg_func, args.rule, args.eca, layout=args.layout
+            )
     elif args.cmd == "cycles":
         print_cycles(args.N, args.rule, args.eca)
     elif args.cmd == "graph":
-        visualize_graph(args.N, args.rule, args.eca)
+        visualize_graph(args.N, args.rule, args.eca, layout=args.layout)
     elif args.cmd == "coarse-graph":
         cg_func = _parse_custom_partition(args.groups, args.N)
-        visualize_coarse_graph(args.N, cg_func, args.rule, args.eca)
+        visualize_coarse_graph(args.N, cg_func, args.rule, args.eca, layout=args.layout)
+
+
+def _compute_layout(G: nx.Graph, layout: str) -> Dict[object, np.ndarray]:
+    """Compute node positions for a requested layout algorithm.
+
+    Supported layout strings (case-insensitive): spring, circular, shell, kamada,
+    spectral, planar. Falls back to spring if the requested layout is invalid
+    or planar layout fails (e.g., graph not planar).
+    """
+    key = (layout or "spring").lower()
+    try:
+        if key == "spring":
+            return nx.spring_layout(G, k=3, iterations=200, seed=42)
+        if key == "circular":
+            return nx.circular_layout(G)
+        if key == "shell":
+            return nx.shell_layout(G)
+        if key == "kamada":
+            return nx.kamada_kawai_layout(G)
+        if key == "spectral":
+            return nx.spectral_layout(G)
+        if key == "planar":
+            try:
+                return nx.planar_layout(G)
+            except nx.NetworkXException:
+                pass
+    except Exception:
+        pass
+    return nx.spring_layout(G, k=3, iterations=200, seed=42)
 
 
 if __name__ == "__main__":

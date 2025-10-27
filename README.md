@@ -120,6 +120,7 @@ Options:
 - `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (e.g. "2 3 0 1" for N=2)
 - `--eca RULE_NUM`: Elementary cellular automaton rule number (0-255). Automatically generates the full 2^N mapping. Mutually exclusive with `-r`.
 - `--groups`: JSON string or path specifying a full partition of the 2^N microstates (required)
+- `--layout`: Layout algorithm for the trajectory coarse graph when `--plot` is given. Choices: `spring` (default), `circular`, `shell`, `kamada`, `spectral`, `planar` (falls back to spring if not planar).
 
 The demo mode provides:
 
@@ -174,6 +175,7 @@ Options:
 - `-N`: Number of bits (default: 4)
 - `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image
 - `--eca RULE_NUM`: Elementary cellular automaton rule number (0-255). Mutually exclusive with `-r`.
+- `--layout`: Graph layout algorithm (default: `spring`). Other choices: `circular`, `shell`, `kamada`, `spectral`, `planar`.
 
 Shows a directed graph where:
 
@@ -198,6 +200,7 @@ Options:
 - `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (e.g. "0 1 2 3 4 5 6 7" for N=3)
 - `--eca RULE_NUM`: Elementary cellular automaton rule number (0-255). Mutually exclusive with `-r`.
 - `--groups`: JSON string or path specifying a full partition (required)
+- `--layout`: Graph layout algorithm (default: `spring`). Other choices: `circular`, `shell`, `kamada`, `spectral`, `planar`.
 
 Features:
 
@@ -218,6 +221,11 @@ python n-bit_universe.py coarse-graph -N 4 -r "0 1 2 3 4 5 6 7 8 9 10 11 12 13 1
 
 # Using --eca with Rule 90
 python n-bit_universe.py coarse-graph -N 5 --eca 90 --groups custom_partition_example.json
+
+# Try alternative layouts:
+python n-bit_universe.py graph -N 4 --eca 90 --layout circular
+python n-bit_universe.py coarse-graph -N 4 --eca 110 --groups custom_partition_example.json --layout kamada
+python n-bit_universe.py graph -N 4 -r "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 0" --layout spectral
 ```
 
 ### Using the --eca Flag
@@ -235,6 +243,19 @@ python n-bit_universe.py cycles -N 5 --eca 90
 ```
 
 The `--eca` flag works with all commands (`demo`, `cycles`, `graph`, `coarse-graph`) and is mutually exclusive with the `-r/--rule` option.
+
+### Graph Layouts
+
+You can choose different layouts for visualization to emphasize structure:
+
+- `spring`: Force-directed layout (Fruchterman-Reingold). Good general-purpose default.
+- `circular`: Places nodes on a circle; useful for seeing cycle structure.
+- `shell`: Concentric shells; NetworkX chooses grouping heuristics.
+- `kamada`: Kamada–Kawai spring layout; sometimes produces more uniform edge lengths.
+- `spectral`: Uses eigenvectors of graph Laplacian; can highlight connectivity clusters.
+- `planar`: Attempts planar embedding (only works if graph is planar; falls back to `spring` otherwise).
+
+If an unsupported layout string is provided or a planar embedding fails, the code automatically falls back to the `spring` layout.
 
 ## Theory
 
