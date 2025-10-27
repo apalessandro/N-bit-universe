@@ -302,6 +302,7 @@ def run_demo(
     steps: int,
     cg_func: CoarseFn,
     rule_str: str,
+    eca_rule_num: int | None = None,
 ) -> None:
     """Small demo printing macro entropy over time and visualizing trajectory on coarse-grained graph.
 
@@ -310,6 +311,7 @@ def run_demo(
         steps: Number of evolution steps
         cg_func: Custom coarse-graining function (required)
         rule_str: Space-separated integers 0…2^N−1 representing the mapping (required)
+        eca_rule_num: If provided, display 'Rule-<num>' instead of the full rule string
     """
     cg = cg_func
     step_fn = parse_permutation_rule(rule_str, N)
@@ -337,7 +339,10 @@ def run_demo(
     counts = Counter(macs)
     H_macro = entropy_from_counts(counts)  # single bag over the whole run
 
-    print(f"N={N}, steps={steps}, rule={rule_str}")
+    rule_label = (
+        f"Rule-{eca_rule_num}" if eca_rule_num is not None else f"Rule = {rule_str}"
+    )
+    print(f"N={N}, steps={steps}, {rule_label}")
     print(f"First 10 macrostates along trajectory: {macs[:10]}")
     print(f"Histogram of macrostates on trajectory: {dict(counts)}")
     print(f"Macro entropy over trajectory bag (nats): {H_macro:.6f}")
@@ -349,7 +354,7 @@ def run_demo(
         print(f"to {labels[i]}: " + " ".join(f"{x:.3f}" for x in row))
 
     # Visualize the trajectory on the coarse-grained graph
-    _visualize_demo_trajectory(N, cg, macs, entropies, step_fn, rule_str)
+    _visualize_demo_trajectory(N, cg, macs, entropies, step_fn, rule_str, eca_rule_num)
 
 
 def _visualize_demo_trajectory(
@@ -359,6 +364,7 @@ def _visualize_demo_trajectory(
     entropies: List[float],
     step_fn: StepFn,
     rule: str,
+    eca_rule_num: int | None = None,
 ) -> None:
     """
     Visualize the trajectory on the coarse-grained phase space graph with entropy plot.
@@ -501,7 +507,7 @@ def _visualize_demo_trajectory(
         )
 
     ax_graph.set_title(
-        f"Trajectory Visualization (N={N}, Rule-{rule})\n"
+        f"Trajectory Visualization (N={N}, {f'Rule-{eca_rule_num}' if eca_rule_num is not None else f'Rule = {rule}'})\n"
         f"Green=Start, Red edges=Trajectory path",
         fontsize=12,
         fontweight="bold",
@@ -521,20 +527,26 @@ def _visualize_demo_trajectory(
     plt.show()
 
 
-def print_cycles(N: int, rule_str: str) -> None:
+def print_cycles(N: int, rule_str: str, eca_rule_num: int | None = None) -> None:
     step_fn = parse_permutation_rule(rule_str, N)
     cycs = cycles(N, step_fn)
     Ls = sorted(len(c) for c in cycs)
-    print(f"Rule string: Permutation decomposes into {len(cycs)} cycles. Lengths: {Ls}")
+    rule_label = (
+        f"Rule-{eca_rule_num}" if eca_rule_num is not None else f"Rule = {rule_str}"
+    )
+    print(
+        f"{rule_label}: Permutation decomposes into {len(cycs)} cycles. Lengths: {Ls}"
+    )
     if N <= 5:
         for c in cycs:
             print([bin(x)[2:].zfill(N) for x in c])
 
 
-def visualize_graph(N: int, rule_str: str) -> None:
+def visualize_graph(N: int, rule_str: str, eca_rule_num: int | None = None) -> None:
     """
     Visualize the directed graph of the microscopic phase space.
     Nodes are bit strings and edges connect each configuration to its successor under T.
+    If eca_rule_num is provided, display 'Rule-<num>' instead of the full rule string.
     """
     step_fn = parse_permutation_rule(rule_str, N)
     mapping = permutation_graph(N, step_fn)
@@ -574,8 +586,13 @@ def visualize_graph(N: int, rule_str: str) -> None:
     labels = {x: bin(x)[2:].zfill(N) for x in G.nodes()}
     nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight="bold", ax=ax)
 
+    # Title: show Rule-<num> if eca_rule_num is provided
+    if eca_rule_num is not None:
+        rule_label = f"Rule-{eca_rule_num}"
+    else:
+        rule_label = "Rule = " + rule_str
     ax.set_title(
-        f"Phase Portrait Graph (N={N}, Rule={rule_str})\n$|\\Omega| = 2^{{{N}}} = {2**N}$ states",
+        f"Phase Portrait Graph (N={N}, {rule_label})\n$|\\Omega| = 2^{{{N}}} = {2**N}$ states",
         fontsize=14,
         fontweight="bold",
     )
@@ -597,6 +614,7 @@ def visualize_coarse_graph(
     N: int,
     cg_func: CoarseFn,
     rule_str: str,
+    eca_rule_num: int | None = None,
 ) -> None:
     """
     Visualize the coarse-grained phase space graph.
@@ -606,7 +624,8 @@ def visualize_coarse_graph(
     Args:
         N: Number of bits
         cg_func: Custom coarse-graining function (required)
-        rule: CA rule number (0-255, required)
+        rule_str: Space-separated integers representing the mapping
+        eca_rule_num: If provided, display 'Rule-<num>' instead of the full rule string
     """
     if cg_func is None:
         raise ValueError(
@@ -698,8 +717,11 @@ def visualize_coarse_graph(
     )
 
     # Title with coarse-graining info
+    rule_label = (
+        f"Rule-{eca_rule_num}" if eca_rule_num is not None else f"Rule = {rule_str}"
+    )
     ax.set_title(
-        f"Coarse-Grained Phase Portrait Graph (N={N}, Rule={rule_str})\n"
+        f"Coarse-Grained Phase Portrait Graph (N={N}, {rule_label})\n"
         f"Macrostates: {len(unique_macros)}, Total microstates: {2**N}\n",
         fontsize=12,
         fontweight="bold",
@@ -938,16 +960,16 @@ def main():
 
     if args.cmd == "demo":
         cg_func = _parse_custom_partition(args.groups, args.N)
-        run_demo(args.N, args.steps, cg_func, args.rule)
+        run_demo(args.N, args.steps, cg_func, args.rule, args.eca)
         if args.plot:
-            visualize_coarse_graph(args.N, cg_func, args.rule)
+            visualize_coarse_graph(args.N, cg_func, args.rule, args.eca)
     elif args.cmd == "cycles":
-        print_cycles(args.N, args.rule)
+        print_cycles(args.N, args.rule, args.eca)
     elif args.cmd == "graph":
-        visualize_graph(args.N, args.rule)
+        visualize_graph(args.N, args.rule, args.eca)
     elif args.cmd == "coarse-graph":
         cg_func = _parse_custom_partition(args.groups, args.N)
-        visualize_coarse_graph(args.N, cg_func, args.rule)
+        visualize_coarse_graph(args.N, cg_func, args.rule, args.eca)
 
 
 if __name__ == "__main__":
