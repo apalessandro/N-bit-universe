@@ -70,25 +70,36 @@ def make_rule_step(rule_number: int) -> StepFn:
     return step
 
 
-# Convenient preset functions for well-known rules
-def rule30_step(s: State) -> State:
-    """Rule-30: Chaotic behavior."""
-    return make_rule_step(30)(s)
+def generate_eca_rule_string(rule_number: int, N: int) -> str:
+    """
+    Generate the full permutation string for an elementary cellular automaton rule.
 
+    Applies the ECA rule to all 2^N possible states to build the complete mapping.
+    This allows using ECA rules (0-255) directly without hand-typing the full permutation.
 
-def rule90_step(s: State) -> State:
-    """Rule-90: Additive, XOR of neighbors."""
-    return make_rule_step(90)(s)
+    Args:
+        rule_number: ECA rule number (0-255)
+        N: Number of bits
 
+    Returns:
+        Space-separated string of 2^N integers representing the complete mapping
 
-def rule110_step(s: State) -> State:
-    """Rule-110: Turing complete."""
-    return make_rule_step(110)(s)
+    Example:
+        For Rule 90, N=3: generates "0 7 6 1 4 3 2 5"
+        (Each state maps to the result of applying Rule 90 once)
+    """
+    if not 0 <= rule_number <= 255:
+        raise ValueError(f"ECA rule number must be 0-255, got {rule_number}")
 
+    step_fn = make_rule_step(rule_number)
+    mapping = []
 
-def rule184_step(s: State) -> State:
-    """Rule-184: Traffic flow model."""
-    return make_rule_step(184)(s)
+    for i in range(2**N):
+        s = int_to_state(i, N)
+        s_next = step_fn(s)
+        mapping.append(state_to_int(s_next))
+
+    return " ".join(map(str, mapping))
 
 
 def parse_permutation_rule(rule_str: str, N: int) -> StepFn:
@@ -128,7 +139,7 @@ def parse_permutation_rule(rule_str: str, N: int) -> StepFn:
     return step
 
 
-def evolve(s0: State, steps: int, step_fn: StepFn = rule90_step) -> List[State]:
+def evolve(s0: State, steps: int, step_fn: StepFn) -> List[State]:
     """Return the trajectory [s0, s1, ..., s_steps]."""
     traj = [s0.copy()]
     s = s0.copy()
@@ -184,7 +195,7 @@ def enumerate_states(N: int) -> List[State]:
     return [int_to_state(x, N) for x in range(2**N)]
 
 
-def permutation_graph(N: int, step_fn: StepFn = rule90_step) -> Dict[int, int]:
+def permutation_graph(N: int, step_fn: StepFn) -> Dict[int, int]:
     """Return the permutation as a dict: x -> y in integer labels."""
     mapping: Dict[int, int] = {}
     for s in enumerate_states(N):
@@ -194,7 +205,7 @@ def permutation_graph(N: int, step_fn: StepFn = rule90_step) -> Dict[int, int]:
     return mapping
 
 
-def cycles(N: int, step_fn: StepFn = rule90_step) -> List[List[int]]:
+def cycles(N: int, step_fn: StepFn) -> List[List[int]]:
     """Decompose the permutation into cycles, states labeled as integers."""
     mapping = permutation_graph(N, step_fn)
     seen = set()
@@ -224,7 +235,7 @@ def macro_histogram(traj: Sequence[State], coarse: CoarseFn) -> Dict[object, int
 def induced_macro_transition_uniform(
     N: int,
     coarse: CoarseFn,
-    step_fn: StepFn = rule90_step,
+    step_fn: StepFn,
 ) -> Tuple[List[object], np.ndarray]:
     """
     Build the induced macro transition operator under a uniform distribution
@@ -262,7 +273,7 @@ def induced_macro_transition_uniform(
 def is_markovianly_closed(
     N: int,
     coarse: CoarseFn,
-    step_fn: StepFn = rule90_step,
+    step_fn: StepFn,
 ) -> bool:
     """
     Test lumpability: for each macro m, all microstates in m induce the same
@@ -836,12 +847,18 @@ def main():
     p_demo = sub.add_parser("demo", help="Run a small simulation and print macro info.")
     p_demo.add_argument("-N", type=int, default=4, help="Number of bits")
     p_demo.add_argument("-t", "--steps", type=int, default=16, help="Number of steps")
-    p_demo.add_argument(
+    demo_rule_group = p_demo.add_mutually_exclusive_group(required=True)
+    demo_rule_group.add_argument(
         "-r",
         "--rule",
         type=str,
-        required=True,
         help="Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (e.g. '2 3 0 1' for N=2)",
+    )
+    demo_rule_group.add_argument(
+        "--eca",
+        type=int,
+        metavar="RULE_NUM",
+        help="Elementary cellular automaton rule number (0-255). Automatically generates the full 2^N mapping.",
     )
     p_demo.add_argument(
         "--groups",
@@ -857,36 +874,54 @@ def main():
 
     p_cycles = sub.add_parser("cycles", help="Print cycle decomposition stats.")
     p_cycles.add_argument("-N", type=int, default=4, help="Number of bits")
-    p_cycles.add_argument(
+    cycles_rule_group = p_cycles.add_mutually_exclusive_group(required=True)
+    cycles_rule_group.add_argument(
         "-r",
         "--rule",
         type=str,
-        required=True,
         help="Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image",
+    )
+    cycles_rule_group.add_argument(
+        "--eca",
+        type=int,
+        metavar="RULE_NUM",
+        help="Elementary cellular automaton rule number (0-255). Automatically generates the full 2^N mapping.",
     )
 
     p_graph = sub.add_parser(
         "graph", help="Visualize the microscopic phase space graph."
     )
     p_graph.add_argument("-N", type=int, default=4, help="Number of bits")
-    p_graph.add_argument(
+    graph_rule_group = p_graph.add_mutually_exclusive_group(required=True)
+    graph_rule_group.add_argument(
         "-r",
         "--rule",
         type=str,
-        required=True,
         help="Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image",
+    )
+    graph_rule_group.add_argument(
+        "--eca",
+        type=int,
+        metavar="RULE_NUM",
+        help="Elementary cellular automaton rule number (0-255). Automatically generates the full 2^N mapping.",
     )
 
     p_coarse_graph = sub.add_parser(
         "coarse-graph", help="Visualize the coarse-grained phase space graph."
     )
     p_coarse_graph.add_argument("-N", type=int, default=4, help="Number of bits")
-    p_coarse_graph.add_argument(
+    coarse_rule_group = p_coarse_graph.add_mutually_exclusive_group(required=True)
+    coarse_rule_group.add_argument(
         "-r",
         "--rule",
         type=str,
-        required=True,
         help="Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image",
+    )
+    coarse_rule_group.add_argument(
+        "--eca",
+        type=int,
+        metavar="RULE_NUM",
+        help="Elementary cellular automaton rule number (0-255). Automatically generates the full 2^N mapping.",
     )
     p_coarse_graph.add_argument(
         "--groups",
@@ -896,6 +931,11 @@ def main():
     )
 
     args = parser.parse_args()
+
+    # Convert --eca to rule string if provided
+    if hasattr(args, "eca") and args.eca is not None:
+        args.rule = generate_eca_rule_string(args.eca, args.N)
+
     if args.cmd == "demo":
         cg_func = _parse_custom_partition(args.groups, args.N)
         run_demo(args.N, args.steps, cg_func, args.rule)
