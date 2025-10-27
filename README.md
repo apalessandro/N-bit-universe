@@ -20,18 +20,11 @@ This project implements **any elementary cellular automaton** (rules 0-255) as f
 - **Trajectory Generation**: Track system evolution over time
 - **Permutation Analysis**: View the state space as a permutation group with cycle decomposition
 
-### Coarse-Graining Methods
+### Coarse-Graining
 
-Four built-in macroscopic descriptions:
+You can supply an arbitrary partition of the microscopic state space (all 2^N bitstrings) and treat its blocks as macrostates. This lets you explore descriptive phase spaces.
 
-1. **Hamming Weight**: Count of 1-bits in the state
-2. **Parity**: Even/odd number of 1-bits
-3. **Rotation Class**: Equivalence class under cyclic rotations
-4. **Prefix (first N−1 bits)**: Drops only the final bit
-
-You can also supply an arbitrary partition of the microscopic state space (all 2^N bitstrings) and treat its blocks as macrostates. This lets you explore descriptive phase spaces beyond the built-ins.
-
-Add `-c custom --groups <SPEC>` where `<SPEC>` is either:
+Add `--groups <SPEC>` where `<SPEC>` is either:
 
 1. A path to a JSON file, or
 2. An inline JSON string.
@@ -72,19 +65,19 @@ Validation rules:
 Example (inline JSON):
 
 ```bash
-python n-bit_universe.py coarse-graph -N 3 -c custom --groups '{"A":["000","001"],"B":["010","011"],"C":["100","101","110","111"]}'
+python n-bit_universe.py coarse-graph -N 3 --groups '{"A":["000","001"],"B":["010","011"],"C":["100","101","110","111"]}'
 ```
 
 Example (file):
 
 ```bash
-python n-bit_universe.py coarse-graph -N 4 -c custom --groups custom_partition_example.json
+python n-bit_universe.py coarse-graph -N 4 --groups custom_partition_example.json
 ```
 
 You can also use `demo` mode:
 
 ```bash
-python n-bit_universe.py demo -N 3 -t 12 -r 90 -c custom --groups '{"even-weight":[0,3,5,6],"odd-weight":[1,2,4,7]}' --plot
+python n-bit_universe.py demo -N 3 -t 12 -r 90 --groups '{"even-weight":[0,3,5,6],"odd-weight":[1,2,4,7]}' --plot
 ```
 
 Returned macro labels (e.g. `"A"`, `"High"`, or `"2"`) integrate seamlessly with entropy computations, transition matrix construction, Markovian closure tests, and visualization.
@@ -113,16 +106,15 @@ pip install numpy
 Run a simulation with macro-level analysis and visualization:
 
 ```bash
-python n-bit_universe.py demo -N 4 -t 16 -c parity -r 90
+python n-bit_universe.py demo -N 4 -t 16 -r 90 --groups custom_partition_example.json
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
 - `-t, --steps`: Number of time steps (default: 16)
-- `-r, --rule`: Cellular automaton rule number from **0 to 255** (default: 90)
-- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, `rotation`, `prefix`, or `custom` (default: parity)
-- `--groups`: (Required when `-c custom`) JSON string or path specifying a full partition of the 2^N microstates.
+- `-r, --rule`: Cellular automaton rule number from **0 to 255** (required)
+- `--groups`: JSON string or path specifying a full partition of the 2^N microstates (required)
 
 The demo mode provides:
 
@@ -137,7 +129,7 @@ The demo mode provides:
 Example output:
 
 ```text
-N=4, steps=16, rule=90, coarse=parity
+N=4, steps=16, rule=90
 First 10 macrostates along trajectory: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
 Histogram of macrostates on trajectory: {1: 9, 0: 8}
 Macro entropy over trajectory bag (nats): 0.692419
@@ -178,17 +170,17 @@ Shows a directed graph where:
 
 #### Coarse-Grained Phase Space Visualization
 
-Visualize the macroscopic state space with different coarse-graining methods:
+Visualize the macroscopic state space with custom coarse-graining:
 
 ```bash
-python n-bit_universe.py coarse-graph -N 8 -c rotation
+python n-bit_universe.py coarse-graph -N 8 -r 90 --groups custom_partition_example.json
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-c, --coarse`: Coarse-graining method: `parity`, `weight`, `rotation`, `prefix`, or `custom` (default: parity)
-- `--groups`: (Required when `-c custom`) JSON string or path specifying a full partition.
+- `-r, --rule`: Cellular automaton rule number from **0 to 255** (required)
+- `--groups`: JSON string or path specifying a full partition (required)
 
 Features:
 
@@ -201,20 +193,11 @@ Features:
 Examples:
 
 ```bash
-# Visualize with parity coarse-graining
-python n-bit_universe.py coarse-graph -N 16 -c parity
-
-# Visualize with Hamming weight
-python n-bit_universe.py coarse-graph -N 8 -c weight
-
-# Visualize with rotation classes
-python n-bit_universe.py coarse-graph -N 8 -c rotation
-
 # Visualize with a custom partition (inline JSON)
-python n-bit_universe.py coarse-graph -N 3 -c custom --groups '{"left":["000","001"],"middle":["010","011"],"right":["100","101","110","111"]}'
+python n-bit_universe.py coarse-graph -N 3 -r 90 --groups '{"left":["000","001"],"middle":["010","011"],"right":["100","101","110","111"]}'
 
 # Visualize with a custom partition from file
-python n-bit_universe.py coarse-graph -N 4 -c custom --groups custom_partition_example.json
+python n-bit_universe.py coarse-graph -N 4 -r 110 --groups custom_partition_example.json
 ```
 
 ### Python API
@@ -229,15 +212,13 @@ from n_bit_universe import (
     rule184_step,
     get_rule,
     evolve,
-    cg_weight,
-    cg_parity,
-    cg_rotation_class,
     entropy_from_counts,
     is_markovianly_closed,
     induced_macro_transition_uniform,
     cycles,
     int_to_state,
-    state_to_int
+    state_to_int,
+    _parse_custom_partition  # For custom coarse-graining
 )
 
 # Create initial state (e.g., 0001)
@@ -256,14 +237,18 @@ rule_fn = rule110_step
 # Evolve the system
 trajectory = evolve(s0, steps=10, step_fn=rule_fn)
 
+# Define custom coarse-graining via JSON
+custom_partition = '{"low":[0,1,2],"mid":[3,4,5],"high":[6,7,8,9,10,11,12,13,14,15]}'
+cg_func = _parse_custom_partition(custom_partition, N)
+
 # Apply coarse-graining
-macro_states = [cg_parity(s) for s in trajectory]
+macro_states = [cg_func(s) for s in trajectory]
 
 # Check if coarse-graining is Markovian
-is_closed = is_markovianly_closed(N, cg_parity, rule_fn)
+is_closed = is_markovianly_closed(N, cg_func, rule_fn)
 
 # Get induced macro transition matrix
-macro_labels, M = induced_macro_transition_uniform(N, cg_parity, rule_fn)
+macro_labels, M = induced_macro_transition_uniform(N, cg_func, rule_fn)
 
 # Analyze cycle structure
 cycle_list = cycles(N, rule_fn)
@@ -384,17 +369,22 @@ for rule_name in ["30", "90", "110", "184"]:
 
 ```python
 from n_bit_universe import (
-    cg_parity, cg_weight, cg_rotation_class,
-    is_markovianly_closed, get_rule
+    is_markovianly_closed, get_rule, _parse_custom_partition
 )
 
 N = 5
 rule_fn = get_rule("110")
 
+# Define different custom partitions
+parity_partition = '{"even":[0,3,5,6,9,10,12,15,17,18,20,23,24,27,29,30],"odd":[1,2,4,7,8,11,13,14,16,19,21,22,25,26,28,31]}'
+weight_partition = '{"w0":[0],"w1":[1,2,4,8,16],"w2":[3,5,6,9,10,12,17,18,20,24],"w3":[7,11,13,14,19,21,22,25,26,28],"w4":[15,23,27,29,30],"w5":[31]}'
+
+cg_parity = _parse_custom_partition(parity_partition, N)
+cg_weight = _parse_custom_partition(weight_partition, N)
+
 # Check which coarse-grainings are Markovian for rule-110
 print(f"Parity closed: {is_markovianly_closed(N, cg_parity, rule_fn)}")
 print(f"Weight closed: {is_markovianly_closed(N, cg_weight, rule_fn)}")
-print(f"Rotation closed: {is_markovianly_closed(N, cg_rotation_class, rule_fn)}")
 ```
 
 ### Example 4: Exploring Trajectories

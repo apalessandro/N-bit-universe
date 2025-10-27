@@ -3,7 +3,7 @@ Finite Descriptive Universe: elementary cellular automaton on N bits.
 Implements:
   - Any elementary cellular automaton rule (0-255) via Wolfram encoding
   - Deterministic synchronous updates with periodic boundary conditions
-  - Coarse-grainings: Hamming weight, parity, rotation class
+  - Custom coarse-grainings via JSON specification
   - Microscopic and macroscopic entropy (natural logs)
   - Induced macro transition operator (uniform over microstates within a macrocell)
   - Test for Markovian closure (lumpability)
@@ -120,57 +120,6 @@ def evolve(s0: State, steps: int, step_fn: StepFn = rule90_step) -> List[State]:
         s = step_fn(s)
         traj.append(s.copy())
     return traj
-
-
-# ----------------------------
-# Coarse-grainings
-# ----------------------------
-
-
-def cg_weight(s: State) -> int:
-    """Hamming weight coarse-graining."""
-    return int(s.sum())
-
-
-def cg_parity(s: State) -> int:
-    """Parity coarse-graining, 0 even, 1 odd."""
-    return int(s.sum() & 1)
-
-
-def _min_rotation(bits: Tuple[int, ...]) -> Tuple[int, ...]:
-    """Minimal lexicographic rotation of the bit tuple."""
-    N = len(bits)
-    doubles = bits + bits
-    # Booth algorithm not needed for small N
-    rotations = (tuple(doubles[i : i + N]) for i in range(N))
-    return min(rotations)
-
-
-def cg_rotation_class(s: State) -> Tuple[int, ...]:
-    """Rotation class representative as the minimal lexicographic rotation."""
-    return _min_rotation(tuple(int(x) for x in s.tolist()))
-
-
-def cg_prefix_nminus1(s: State) -> str:
-    """Coarse-graining that keeps the first N-1 bits (prefix) and forgets the last bit.
-
-    For state s = (s0, s1, ..., s_{N-2}, s_{N-1}) with N>=2 returns the string
-    label: s0 s1 ... s_{N-2}. Thus there are exactly 2^{N-1} macrostates, each
-    containing 2 microstates differing only in the final bit.
-
-    Examples:
-        N=4, s = 1 0 1 1 -> "101"
-        N=2, s = 0 1     -> "0"  (two macrostates: "0" and "1")
-
-    Rationale: This is a simple local projection that discards one site and is
-    a direct generalization of the earlier first-two-bits idea; it yields a
-    uniform block size of 2 across all macrostates.
-    """
-    N = s.shape[0]
-    if N < 2:
-        raise ValueError("cg_prefix_nminus1 requires N>=2")
-    # Join all but last bit
-    return ''.join(str(int(b)) for b in s[:-1])
 
 
 # ----------------------------
@@ -324,29 +273,18 @@ def is_markovianly_closed(
 def run_demo(
     N: int,
     steps: int,
-    coarse: str,
-    rule: str = "90",
-    cg_override: CoarseFn | None = None,
+    cg_func: CoarseFn,
+    rule: str,
 ) -> None:
     """Small demo printing macro entropy over time and visualizing trajectory on coarse-grained graph.
 
-    If ``cg_override`` is provided it is used directly (allowing custom user partitions).
+    Args:
+        N: Number of bits
+        steps: Number of evolution steps
+        cg_func: Custom coarse-graining function (required)
+        rule: CA rule number (0-255, required)
     """
-    coarse_map: Dict[str, CoarseFn] = {
-        "weight": cg_weight,
-        "parity": cg_parity,
-        "rotation": cg_rotation_class,
-        "prefix": cg_prefix_nminus1,
-        # 'custom' handled separately
-    }
-    if cg_override is not None:
-        cg = cg_override
-    else:
-        if coarse not in coarse_map:
-            raise ValueError(
-                f"Unknown coarse-graining {coarse}. Choose from {list(coarse_map) + ['custom']}"
-            )
-        cg = coarse_map[coarse]
+    cg = cg_func
     step_fn = get_rule(rule)
 
     s0 = int_to_state(1, N)  # start from 00..01
@@ -372,7 +310,7 @@ def run_demo(
     counts = Counter(macs)
     H_macro = entropy_from_counts(counts)  # single bag over the whole run
 
-    print(f"N={N}, steps={steps}, rule={rule}, coarse={coarse}")
+    print(f"N={N}, steps={steps}, rule={rule}")
     print(f"First 10 macrostates along trajectory: {macs[:10]}")
     print(f"Histogram of macrostates on trajectory: {dict(counts)}")
     print(f"Macro entropy over trajectory bag (nats): {H_macro:.6f}")
@@ -384,7 +322,7 @@ def run_demo(
         print(f"to {labels[i]}: " + " ".join(f"{x:.3f}" for x in row))
 
     # Visualize the trajectory on the coarse-grained graph
-    _visualize_demo_trajectory(N, cg, macs, entropies, coarse, step_fn, rule)
+    _visualize_demo_trajectory(N, cg, macs, entropies, step_fn, rule)
 
 
 def _visualize_demo_trajectory(
@@ -392,9 +330,8 @@ def _visualize_demo_trajectory(
     cg: CoarseFn,
     trajectory_macs: List[object],
     entropies: List[float],
-    coarse: str,
     step_fn: StepFn,
-    rule: str = "90",
+    rule: str,
 ) -> None:
     """
     Visualize the trajectory on the coarse-grained phase space graph with entropy plot.
@@ -536,9 +473,8 @@ def _visualize_demo_trajectory(
             linewidths=3,
         )
 
-    coarse_display = coarse.capitalize()
     ax_graph.set_title(
-        f"Trajectory Visualization (N={N}, Rule-{rule}, {coarse_display})\n"
+        f"Trajectory Visualization (N={N}, Rule-{rule})\n"
         f"Green=Start, Red edges=Trajectory path",
         fontsize=12,
         fontweight="bold",
@@ -634,30 +570,24 @@ def visualize_graph(N: int, rule: str = "90") -> None:
 
 def visualize_coarse_graph(
     N: int,
-    coarse: str,
-    rule: str = "90",
-    cg_override: CoarseFn | None = None,
+    cg_func: CoarseFn,
+    rule: str,
 ) -> None:
     """
     Visualize the coarse-grained phase space graph.
     Nodes are macrostates (labeled with their macrostate value and microstate count),
     and edges show transitions between macrostates.
+
+    Args:
+        N: Number of bits
+        cg_func: Custom coarse-graining function (required)
+        rule: CA rule number (0-255, required)
     """
-    coarse_map: Dict[str, CoarseFn] = {
-        "weight": cg_weight,
-        "parity": cg_parity,
-        "rotation": cg_rotation_class,
-        "prefix": cg_prefix_nminus1,
-        # 'custom' handled separately
-    }
-    if cg_override is not None:
-        cg = cg_override
-    else:
-        if coarse not in coarse_map:
-            raise ValueError(
-                f"Unknown coarse-graining {coarse}. Choose from {list(coarse_map) + ['custom']}"
-            )
-        cg = coarse_map[coarse]
+    if cg_func is None:
+        raise ValueError(
+            "Coarse-graining function is required. Use --groups to specify a custom partition."
+        )
+    cg = cg_func
     step_fn = get_rule(rule)
 
     # Get all microstates and their macrostates
@@ -743,9 +673,8 @@ def visualize_coarse_graph(
     )
 
     # Title with coarse-graining info
-    coarse_display = coarse.capitalize()
     ax.set_title(
-        f"Coarse-Grained Phase Portrait Graph (N={N}, Rule-{rule}, {coarse_display})\n"
+        f"Coarse-Grained Phase Portrait Graph (N={N}, Rule-{rule})\n"
         f"Macrostates: {len(unique_macros)}, Total microstates: {2**N}\n",
         fontsize=12,
         fontweight="bold",
@@ -757,7 +686,6 @@ def visualize_coarse_graph(
 
     # Print statistics
     print("\nCoarse-grained graph structure:")
-    print(f"  Coarse-graining: {coarse_display}")
     print(f"  Macrostates: {len(unique_macros)}")
     print("  Microstates per macrostate:")
     for macro in unique_macros:
@@ -898,21 +826,14 @@ def main():
         "-r",
         "--rule",
         type=str,
-        default="90",
-        help="Cellular automaton rule number 0-255 (default: 90)",
-    )
-    p_demo.add_argument(
-        "-c",
-        "--coarse",
-        type=str,
-        default="parity",
-        choices=["parity", "weight", "rotation", "prefix", "custom"],
-        help="Coarse-graining (add 'custom' with --groups to specify an arbitrary partition)",
+        required=True,
+        help="Cellular automaton rule number 0-255 (required)",
     )
     p_demo.add_argument(
         "--groups",
         type=str,
-        help="Custom grouping specification (JSON string or path). Required if -c custom.",
+        required=True,
+        help="Custom grouping specification (JSON string or path). Required.",
     )
     p_demo.add_argument(
         "--plot",
@@ -950,46 +871,29 @@ def main():
         "-r",
         "--rule",
         type=str,
-        default="90",
-        help="Cellular automaton rule number 0-255 (default: 90)",
-    )
-    p_coarse_graph.add_argument(
-        "-c",
-        "--coarse",
-        type=str,
-        default="parity",
-        choices=["parity", "weight", "rotation", "prefix", "custom"],
-        help="Coarse-graining (add 'custom' with --groups to specify an arbitrary partition)",
+        required=True,
+        help="Cellular automaton rule number 0-255 (required)",
     )
     p_coarse_graph.add_argument(
         "--groups",
         type=str,
-        help="Custom grouping specification (JSON string or path). Required if -c custom.",
+        required=True,
+        help="Custom grouping specification (JSON string or path). Required.",
     )
 
     args = parser.parse_args()
     if args.cmd == "demo":
-        cg_override = None
-        if args.coarse == "custom":
-            if not args.groups:
-                raise SystemExit("--groups is required when using -c custom")
-            cg_override = _parse_custom_partition(args.groups, args.N)
-        run_demo(args.N, args.steps, args.coarse, args.rule, cg_override=cg_override)
+        cg_func = _parse_custom_partition(args.groups, args.N)
+        run_demo(args.N, args.steps, cg_func, args.rule)
         if args.plot:
-            visualize_coarse_graph(
-                args.N, args.coarse, args.rule, cg_override=cg_override
-            )
+            visualize_coarse_graph(args.N, cg_func, args.rule)
     elif args.cmd == "cycles":
         print_cycles(args.N, args.rule)
     elif args.cmd == "graph":
         visualize_graph(args.N, args.rule)
     elif args.cmd == "coarse-graph":
-        cg_override = None
-        if args.coarse == "custom":
-            if not args.groups:
-                raise SystemExit("--groups is required when using -c custom")
-            cg_override = _parse_custom_partition(args.groups, args.N)
-        visualize_coarse_graph(args.N, args.coarse, args.rule, cg_override=cg_override)
+        cg_func = _parse_custom_partition(args.groups, args.N)
+        visualize_coarse_graph(args.N, cg_func, args.rule)
 
 
 if __name__ == "__main__":
