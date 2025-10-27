@@ -413,10 +413,7 @@ def _visualize_demo_trajectory(
     ax_entropy = fig.add_subplot(gs[1])
 
     # Layout
-    if len(unique_macros) <= 10:
-        pos = nx.spring_layout(G, k=3, iterations=50, seed=42)
-    else:
-        pos = nx.kamada_kawai_layout(G)
+    pos = nx.spring_layout(G, k=3, iterations=200, seed=42)
 
     # Node sizes
     max_node_size = 3000
@@ -566,8 +563,7 @@ def visualize_graph(N: int, rule_str: str, eca_rule_num: int | None = None) -> N
     # Create figure
     fig, ax = plt.subplots(figsize=(12, 10))
 
-    # Use circular layout for better cycle visualization
-    pos = nx.spring_layout(G, k=2, iterations=50, seed=42)
+    pos = nx.spring_layout(G, k=3, iterations=200, seed=42)
 
     # Draw the graph
     nx.draw_networkx_nodes(G, pos, node_color="lightblue", node_size=800, ax=ax)
@@ -676,11 +672,7 @@ def visualize_coarse_graph(
     # Create figure
     fig, ax = plt.subplots(figsize=(14, 10))
 
-    # Use layout appropriate for the graph structure
-    if len(unique_macros) <= 10:
-        pos = nx.spring_layout(G, k=3, iterations=50, seed=42)
-    else:
-        pos = nx.kamada_kawai_layout(G)
+    pos = nx.spring_layout(G, k=3, iterations=200, seed=42)
 
     # Node sizes proportional to number of microstates with a maximum cap
     max_node_size = 3000  # Maximum size for the red ball
