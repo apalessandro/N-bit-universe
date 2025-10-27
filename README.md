@@ -15,7 +15,7 @@ This project implements **any deterministic rule** on N-bit states as finite uni
 
 ### Core Dynamics
 
-- **General Rule Support**: Any deterministic rule specified as space-separated integers representing the mapping from each microstate to its image (e.g., "2 3 0 1" for N=2)
+- **General Rule Support**: Any deterministic rule specified as space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (e.g., "2 3 0 1" for N=2)
 - **Synchronous Evolution**: Deterministic cellular automaton updates with periodic boundaries
 - **Trajectory Generation**: Track system evolution over time
 - **Permutation Analysis**: View the state space as a permutation group with cycle decomposition
@@ -113,7 +113,7 @@ Options:
 
 - `-N`: Number of bits (default: 4)
 - `-t, --steps`: Number of time steps (default: 16)
-- `-r, --rule`: Space-separated integers representing the mapping from each microstate to its image (required, e.g. "2 3 0 1" for N=2)
+- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (required, e.g. "2 3 0 1" for N=2)
 - `--groups`: JSON string or path specifying a full partition of the 2^N microstates (required)
 
 The demo mode provides:
@@ -147,7 +147,7 @@ python n-bit_universe.py cycles -N 4 -r "0 1 2 3"
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-r, --rule`: String of length 2^N representing the mapping from each microstate to its image (required)
+- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (required)
 
 #### Microscopic Phase Space Visualization
 
@@ -160,7 +160,7 @@ python n-bit_universe.py graph -N 4 -r "0 1 2 3"
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-r, --rule`: String of length 2^N representing the mapping from each microstate to its image (required)
+- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (required)
 
 Shows a directed graph where:
 
@@ -179,7 +179,7 @@ python n-bit_universe.py coarse-graph -N 8 -r "0 1 2 3 4 5 6 7" --groups custom_
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-r, --rule`: Space-separated integers representing the mapping from each microstate to its image (required, e.g. "0 1 2 3 4 5 6 7" for N=3)
+- `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (required, e.g. "0 1 2 3 4 5 6 7" for N=3)
 - `--groups`: JSON string or path specifying a full partition (required)
 
 Features:
@@ -204,7 +204,7 @@ python n-bit_universe.py coarse-graph -N 4 -r "0 1 2 3 4 5 6 7 8 9 10 11 12 13 1
 
 ### General Rule Encoding
 
-Every deterministic rule is specified as a string of space-separated integers representing the mapping from each microstate to its image.
+Every deterministic rule is specified as space-separated integers 0…2^N−1 representing the mapping from each microstate to its image.
 
 For example, for N=2, the string `"2 3 0 1"` means:
 

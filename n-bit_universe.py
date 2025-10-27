@@ -95,7 +95,7 @@ def parse_permutation_rule(rule_str: str, N: int) -> StepFn:
     """
     Parse a user-supplied string representing the mapping from each microstate to its image.
 
-    Accepts space-separated integers: "2 3 0 1" (for any N)
+    Accepts space-separated integers 0…2^N−1: "2 3 0 1" (for any N)
 
     Example: For N=2, rule_str="2 3 0 1" means:
       0 -> 2
@@ -298,7 +298,7 @@ def run_demo(
         N: Number of bits
         steps: Number of evolution steps
         cg_func: Custom coarse-graining function (required)
-        rule_str: String of length 2^N representing the mapping (required)
+        rule_str: Space-separated integers 0…2^N−1 representing the mapping (required)
     """
     cg = cg_func
     step_fn = parse_permutation_rule(rule_str, N)
@@ -841,7 +841,7 @@ def main():
         "--rule",
         type=str,
         required=True,
-        help="String of length 2^N representing the mapping from each microstate to its image (e.g. '2301' for N=2)",
+        help="Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image (e.g. '2 3 0 1' for N=2)",
     )
     p_demo.add_argument(
         "--groups",
@@ -862,7 +862,7 @@ def main():
         "--rule",
         type=str,
         required=True,
-        help="String of length 2^N representing the mapping from each microstate to its image",
+        help="Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image",
     )
 
     p_graph = sub.add_parser(
@@ -874,7 +874,7 @@ def main():
         "--rule",
         type=str,
         required=True,
-        help="String of length 2^N representing the mapping from each microstate to its image",
+        help="Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image",
     )
 
     p_coarse_graph = sub.add_parser(
@@ -886,7 +886,7 @@ def main():
         "--rule",
         type=str,
         required=True,
-        help="String of length 2^N representing the mapping from each microstate to its image",
+        help="Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image",
     )
     p_coarse_graph.add_argument(
         "--groups",
