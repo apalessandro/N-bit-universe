@@ -91,25 +91,41 @@ def rule184_step(s: State) -> State:
     return make_rule_step(184)(s)
 
 
-def get_rule(rule: str) -> StepFn:
+def parse_permutation_rule(rule_str: str, N: int) -> StepFn:
     """
-    Get rule function by name or number.
+    Parse a user-supplied string representing the mapping from each microstate to its image.
 
-    Args:
-        rule: Rule number as string ("0" to "255") or preset name
+    Accepts space-separated integers: "2 3 0 1" (for any N)
 
-    Returns:
-        Step function for the specified rule
+    Example: For N=2, rule_str="2 3 0 1" means:
+      0 -> 2
+      1 -> 3
+      2 -> 0
+      3 -> 1
+
+    Returns a step function.
     """
+    M = 2**N
+
+    parts = rule_str.strip().split()
+    if len(parts) != M:
+        raise ValueError(
+            f"Rule string must have {M} space-separated integers for N={N}, got {len(parts)}"
+        )
     try:
-        rule_num = int(rule)
-        if not 0 <= rule_num <= 255:
-            raise ValueError(f"Rule number must be 0-255, got {rule_num}")
-        return make_rule_step(rule_num)
+        mapping = [int(p) for p in parts]
     except ValueError as e:
-        if "invalid literal" in str(e):
-            raise ValueError(f"Invalid rule '{rule}'. Must be an integer 0-255.")
-        raise
+        raise ValueError(f"Invalid integer in rule string: {e}")
+
+    if not all(0 <= v < M for v in mapping):
+        raise ValueError(f"All values in rule string must be in 0..{M - 1}")
+
+    def step(s: State) -> State:
+        idx = state_to_int(s)
+        next_idx = mapping[idx]
+        return int_to_state(next_idx, N)
+
+    return step
 
 
 def evolve(s0: State, steps: int, step_fn: StepFn = rule90_step) -> List[State]:
@@ -274,7 +290,7 @@ def run_demo(
     N: int,
     steps: int,
     cg_func: CoarseFn,
-    rule: str,
+    rule_str: str,
 ) -> None:
     """Small demo printing macro entropy over time and visualizing trajectory on coarse-grained graph.
 
@@ -282,10 +298,10 @@ def run_demo(
         N: Number of bits
         steps: Number of evolution steps
         cg_func: Custom coarse-graining function (required)
-        rule: CA rule number (0-255, required)
+        rule_str: String of length 2^N representing the mapping (required)
     """
     cg = cg_func
-    step_fn = get_rule(rule)
+    step_fn = parse_permutation_rule(rule_str, N)
 
     s0 = int_to_state(1, N)  # start from 00..01
     traj = evolve(s0, steps, step_fn)
@@ -310,7 +326,7 @@ def run_demo(
     counts = Counter(macs)
     H_macro = entropy_from_counts(counts)  # single bag over the whole run
 
-    print(f"N={N}, steps={steps}, rule={rule}")
+    print(f"N={N}, steps={steps}, rule={rule_str}")
     print(f"First 10 macrostates along trajectory: {macs[:10]}")
     print(f"Histogram of macrostates on trajectory: {dict(counts)}")
     print(f"Macro entropy over trajectory bag (nats): {H_macro:.6f}")
@@ -322,7 +338,7 @@ def run_demo(
         print(f"to {labels[i]}: " + " ".join(f"{x:.3f}" for x in row))
 
     # Visualize the trajectory on the coarse-grained graph
-    _visualize_demo_trajectory(N, cg, macs, entropies, step_fn, rule)
+    _visualize_demo_trajectory(N, cg, macs, entropies, step_fn, rule_str)
 
 
 def _visualize_demo_trajectory(
@@ -494,24 +510,22 @@ def _visualize_demo_trajectory(
     plt.show()
 
 
-def print_cycles(N: int, rule: str = "90") -> None:
-    step_fn = get_rule(rule)
+def print_cycles(N: int, rule_str: str) -> None:
+    step_fn = parse_permutation_rule(rule_str, N)
     cycs = cycles(N, step_fn)
     Ls = sorted(len(c) for c in cycs)
-    print(f"Rule-{rule}: Permutation decomposes into {len(cycs)} cycles. Lengths: {Ls}")
-    # Optionally print the cycles themselves for very small N
+    print(f"Rule string: Permutation decomposes into {len(cycs)} cycles. Lengths: {Ls}")
     if N <= 5:
         for c in cycs:
             print([bin(x)[2:].zfill(N) for x in c])
 
 
-def visualize_graph(N: int, rule: str = "90") -> None:
+def visualize_graph(N: int, rule_str: str) -> None:
     """
     Visualize the directed graph of the microscopic phase space.
     Nodes are bit strings and edges connect each configuration to its successor under T.
     """
-    step_fn = get_rule(rule)
-    # Get the permutation graph
+    step_fn = parse_permutation_rule(rule_str, N)
     mapping = permutation_graph(N, step_fn)
 
     # Create directed graph
@@ -550,7 +564,7 @@ def visualize_graph(N: int, rule: str = "90") -> None:
     nx.draw_networkx_labels(G, pos, labels, font_size=10, font_weight="bold", ax=ax)
 
     ax.set_title(
-        f"Phase Portrait Graph (N={N}, Rule-{rule})\n$|\\Omega| = 2^{{{N}}} = {2**N}$ states",
+        f"Phase Portrait Graph (N={N}, Rule={rule_str})\n$|\\Omega| = 2^{{{N}}} = {2**N}$ states",
         fontsize=14,
         fontweight="bold",
     )
@@ -571,7 +585,7 @@ def visualize_graph(N: int, rule: str = "90") -> None:
 def visualize_coarse_graph(
     N: int,
     cg_func: CoarseFn,
-    rule: str,
+    rule_str: str,
 ) -> None:
     """
     Visualize the coarse-grained phase space graph.
@@ -588,7 +602,7 @@ def visualize_coarse_graph(
             "Coarse-graining function is required. Use --groups to specify a custom partition."
         )
     cg = cg_func
-    step_fn = get_rule(rule)
+    step_fn = parse_permutation_rule(rule_str, N)
 
     # Get all microstates and their macrostates
     states = enumerate_states(N)
@@ -674,7 +688,7 @@ def visualize_coarse_graph(
 
     # Title with coarse-graining info
     ax.set_title(
-        f"Coarse-Grained Phase Portrait Graph (N={N}, Rule-{rule})\n"
+        f"Coarse-Grained Phase Portrait Graph (N={N}, Rule={rule_str})\n"
         f"Macrostates: {len(unique_macros)}, Total microstates: {2**N}\n",
         fontsize=12,
         fontweight="bold",
@@ -815,7 +829,7 @@ def _parse_custom_partition(spec: str, N: int) -> CoarseFn:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Finite Descriptive Universe simulator (elementary cellular automata)."
+        description="Finite Descriptive Universe simulator (general reversible rules)."
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -827,7 +841,7 @@ def main():
         "--rule",
         type=str,
         required=True,
-        help="Cellular automaton rule number 0-255 (required)",
+        help="String of length 2^N representing the mapping from each microstate to its image (e.g. '2301' for N=2)",
     )
     p_demo.add_argument(
         "--groups",
@@ -847,8 +861,8 @@ def main():
         "-r",
         "--rule",
         type=str,
-        default="90",
-        help="Cellular automaton rule number 0-255 (default: 90)",
+        required=True,
+        help="String of length 2^N representing the mapping from each microstate to its image",
     )
 
     p_graph = sub.add_parser(
@@ -859,8 +873,8 @@ def main():
         "-r",
         "--rule",
         type=str,
-        default="90",
-        help="Cellular automaton rule number 0-255 (default: 90)",
+        required=True,
+        help="String of length 2^N representing the mapping from each microstate to its image",
     )
 
     p_coarse_graph = sub.add_parser(
@@ -872,7 +886,7 @@ def main():
         "--rule",
         type=str,
         required=True,
-        help="Cellular automaton rule number 0-255 (required)",
+        help="String of length 2^N representing the mapping from each microstate to its image",
     )
     p_coarse_graph.add_argument(
         "--groups",

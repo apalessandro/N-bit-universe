@@ -4,18 +4,18 @@ A finite descriptive universe simulator implementing elementary cellular automat
 
 ## Overview
 
-This project implements **any elementary cellular automaton** (rules 0-255) as finite, deterministic universes where:
+This project implements **any deterministic rule** on N-bit states as finite universes where:
 
-- States are N-bit binary strings with periodic boundary conditions
+- States are N-bit binary strings
 - Evolution is synchronous and deterministic
-- Multiple rule choices enable exploration of different dynamical behaviors
+- Rules are specified as mappings from each microstate to its image
 - The system can be analyzed at both microscopic (individual bits) and macroscopic (coarse-grained) levels
 
 ## Features
 
 ### Core Dynamics
 
-- **Universal Rule Support**: Any elementary CA rule from 0 to 255 using Wolfram's encoding
+- **General Rule Support**: Any deterministic rule specified as space-separated integers representing the mapping from each microstate to its image (e.g., "2 3 0 1" for N=2)
 - **Synchronous Evolution**: Deterministic cellular automaton updates with periodic boundaries
 - **Trajectory Generation**: Track system evolution over time
 - **Permutation Analysis**: View the state space as a permutation group with cycle decomposition
@@ -77,7 +77,7 @@ python n-bit_universe.py coarse-graph -N 4 --groups custom_partition_example.jso
 You can also use `demo` mode:
 
 ```bash
-python n-bit_universe.py demo -N 3 -t 12 -r 90 --groups '{"even-weight":[0,3,5,6],"odd-weight":[1,2,4,7]}' --plot
+python n-bit_universe.py demo -N 3 -t 12 -r "0 1 2 3 4 5 6 7" --groups '{"even-weight":[0,3,5,6],"odd-weight":[1,2,4,7]}' --plot
 ```
 
 Returned macro labels (e.g. `"A"`, `"High"`, or `"2"`) integrate seamlessly with entropy computations, transition matrix construction, Markovian closure tests, and visualization.
@@ -106,14 +106,14 @@ pip install numpy
 Run a simulation with macro-level analysis and visualization:
 
 ```bash
-python n-bit_universe.py demo -N 4 -t 16 -r 90 --groups custom_partition_example.json
+python n-bit_universe.py demo -N 4 -t 16 -r "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15" --groups custom_partition_example.json
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
 - `-t, --steps`: Number of time steps (default: 16)
-- `-r, --rule`: Cellular automaton rule number from **0 to 255** (required)
+- `-r, --rule`: Space-separated integers representing the mapping from each microstate to its image (required, e.g. "2 3 0 1" for N=2)
 - `--groups`: JSON string or path specifying a full partition of the 2^N microstates (required)
 
 The demo mode provides:
@@ -129,7 +129,7 @@ The demo mode provides:
 Example output:
 
 ```text
-N=4, steps=16, rule=90
+N=4, steps=16, rule=2 3 0 1
 First 10 macrostates along trajectory: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
 Histogram of macrostates on trajectory: {1: 9, 0: 8}
 Macro entropy over trajectory bag (nats): 0.692419
@@ -141,26 +141,26 @@ Markovianly closed? True
 Decompose the permutation into cycles:
 
 ```bash
-python n-bit_universe.py cycles -N 4 -r 90
+python n-bit_universe.py cycles -N 4 -r "0 1 2 3"
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-r, --rule`: Cellular automaton rule number from **0 to 255** (default: 90)
+- `-r, --rule`: String of length 2^N representing the mapping from each microstate to its image (required)
 
 #### Microscopic Phase Space Visualization
 
 Visualize the complete state space graph showing all microscopic transitions:
 
 ```bash
-python n-bit_universe.py graph -N 4 -r 90
+python n-bit_universe.py graph -N 4 -r "0 1 2 3"
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-r, --rule`: Cellular automaton rule number from **0 to 255** (default: 90)
+- `-r, --rule`: String of length 2^N representing the mapping from each microstate to its image (required)
 
 Shows a directed graph where:
 
@@ -173,13 +173,13 @@ Shows a directed graph where:
 Visualize the macroscopic state space with custom coarse-graining:
 
 ```bash
-python n-bit_universe.py coarse-graph -N 8 -r 90 --groups custom_partition_example.json
+python n-bit_universe.py coarse-graph -N 8 -r "0 1 2 3 4 5 6 7" --groups custom_partition_example.json
 ```
 
 Options:
 
 - `-N`: Number of bits (default: 4)
-- `-r, --rule`: Cellular automaton rule number from **0 to 255** (required)
+- `-r, --rule`: Space-separated integers representing the mapping from each microstate to its image (required, e.g. "0 1 2 3 4 5 6 7" for N=3)
 - `--groups`: JSON string or path specifying a full partition (required)
 
 Features:
@@ -194,126 +194,44 @@ Examples:
 
 ```bash
 # Visualize with a custom partition (inline JSON)
-python n-bit_universe.py coarse-graph -N 3 -r 90 --groups '{"left":["000","001"],"middle":["010","011"],"right":["100","101","110","111"]}'
+python n-bit_universe.py coarse-graph -N 3 -r "0 1 2 3 4 5 6 7" --groups '{"left":["000","001"],"middle":["010","011"],"right":["100","101","110","111"]}'
 
 # Visualize with a custom partition from file
-python n-bit_universe.py coarse-graph -N 4 -r 110 --groups custom_partition_example.json
-```
-
-### Python API
-
-```python
-import numpy as np
-from n_bit_universe import (
-    make_rule_step,  # General rule generator
-    rule30_step,
-    rule90_step,
-    rule110_step,
-    rule184_step,
-    get_rule,
-    evolve,
-    entropy_from_counts,
-    is_markovianly_closed,
-    induced_macro_transition_uniform,
-    cycles,
-    int_to_state,
-    state_to_int,
-    _parse_custom_partition  # For custom coarse-graining
-)
-
-# Create initial state (e.g., 0001)
-N = 4
-s0 = int_to_state(1, N)
-
-# Method 1: Use the general rule generator for any rule 0-255
-rule_fn = make_rule_step(110)  # Creates rule-110
-
-# Method 2: Use get_rule() for string-based lookup
-rule_fn = get_rule("110")  # Also works with string
-
-# Method 3: Use preset functions directly
-rule_fn = rule110_step
-
-# Evolve the system
-trajectory = evolve(s0, steps=10, step_fn=rule_fn)
-
-# Define custom coarse-graining via JSON
-custom_partition = '{"low":[0,1,2],"mid":[3,4,5],"high":[6,7,8,9,10,11,12,13,14,15]}'
-cg_func = _parse_custom_partition(custom_partition, N)
-
-# Apply coarse-graining
-macro_states = [cg_func(s) for s in trajectory]
-
-# Check if coarse-graining is Markovian
-is_closed = is_markovianly_closed(N, cg_func, rule_fn)
-
-# Get induced macro transition matrix
-macro_labels, M = induced_macro_transition_uniform(N, cg_func, rule_fn)
-
-# Analyze cycle structure
-cycle_list = cycles(N, rule_fn)
-
-# Explore any rule!
-for rule_num in [22, 54, 60, 102, 150, 182]:
-    rule = make_rule_step(rule_num)
-    cycs = cycles(N, rule)
-    print(f"Rule-{rule_num}: {len(cycs)} cycles")
+python n-bit_universe.py coarse-graph -N 4 -r "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15" --groups custom_partition_example.json
 ```
 
 ## Theory
 
-### Wolfram's Elementary Cellular Automaton Encoding
+### General Rule Encoding
 
-Every elementary CA rule is identified by a number from **0 to 255**. The rule number encodes the output for all 8 possible 3-bit neighborhoods:
+Every deterministic rule is specified as a string of space-separated integers representing the mapping from each microstate to its image.
 
-```text
-Neighborhood:  111  110  101  100  011  010  001  000
-Bit position:   7    6    5    4    3    2    1    0
-Output:      (rule_number >> bit_position) & 1
-```
+For example, for N=2, the string `"2 3 0 1"` means:
 
-For example, **Rule-110** = 110₁₀ = 01101110₂:
+- 0 → 2
+- 1 → 3
+- 2 → 0
+- 3 → 1
 
-```text
-Neighborhood:  111  110  101  100  011  010  001  000
-Output:         0    1    1    0    1    1    1    0
-```
+For N=4 (16 states), you would use: `"0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"` for the identity permutation.
 
-So when the neighborhood is `011`, the center cell becomes `1` (bit 3 of 110).
+This allows you to explore any deterministic mapping, including reversible rules (permutations) and non-reversible ones.
 
-### Notable Rules
+### Notable Examples
 
-#### Rule-30 (Chaotic)
+#### Example Permutation (Reversible)
 
-```text
-s'[i] = s[i] ⊕ (s[i-1] OR s[i+1])
-```
+For N=3, the string `"0 1 2 3 4 5 6 7"` is the identity permutation (each state maps to itself).
 
-Exhibits chaotic behavior and is used in random number generation. Shows complex, unpredictable patterns.
+For N=2, the string `"2 3 0 1"` is a permutation with two cycles: (0→2→0) and (1→3→1).
 
-#### Rule-90 (Additive)
+For N=4, the string `"15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0"` reverses the order of all states.
 
-```text
-s'[i] = s[i-1] ⊕ s[i+1]
-```
+#### Example Non-Reversible Rule
 
-Produces patterns similar to Pascal's triangle modulo 2. Exhibits regular, symmetric structures. This rule is **additive** and has well-understood mathematical properties.
+For N=2, the string `"0 0 0 0"` maps every state to 0 (not reversible).
 
-#### Rule-110 (Universal)
-
-```text
-s'[i] = s[i+1] ⊕ (s[i-1] OR s[i])
-```
-
-Proven to be **Turing complete** (capable of universal computation). Shows complex, structured behavior at the "edge of chaos."
-
-#### Rule-184 (Traffic Flow)
-
-```text
-s'[i] = (s[i-1] AND s[i]) OR (s[i] AND NOT s[i+1]) OR (s[i-1] AND NOT s[i+1])
-```
-
-Models **traffic flow** where 1-bits represent cars. Cars move right if the space ahead is empty. Used in studying traffic dynamics and particle systems.
+You can specify any mapping you like, as long as each value is a valid state index (0 to 2^N-1).
 
 ### Coarse-Graining and Emergence
 
@@ -336,44 +254,55 @@ For finite N, the dynamics form a permutation of the 2^N possible states. The cy
 ### Example 1: Exploring Arbitrary Rules
 
 ```python
-from n_bit_universe import make_rule_step, evolve, int_to_state, cycles
+from n_bit_universe import parse_permutation_rule, evolve, int_to_state, cycles
+import itertools
 
-N = 6
+N = 2  # Small N for demonstration
 s0 = int_to_state(1, N)
 
-# Systematically explore rules
-for rule_num in range(0, 256, 10):  # Sample every 10th rule
-    rule_fn = make_rule_step(rule_num)
+# Generate a few example permutations
+M = 2 ** N
+example_rules = ["0 1 2 3", "3 2 1 0", "1 0 3 2", "2 3 0 1"]  # Some permutations for N=2
+
+for rule_str in example_rules:
+    rule_fn = parse_permutation_rule(rule_str, N)
     cycs = cycles(N, rule_fn)
     lengths = sorted(len(c) for c in cycs)
-    print(f"Rule-{rule_num:3d}: {len(cycs):2d} cycles, lengths {lengths[:5]}...")
+    print(f"Rule '{rule_str}': {len(cycs)} cycles, lengths {lengths}")
 ```
 
 ### Example 2: Comparing Rules
 
 ```python
-from n_bit_universe import get_rule, evolve, int_to_state, cycles
+from n_bit_universe import parse_permutation_rule, evolve, int_to_state, cycles
 
-N = 6
+N = 3
 s0 = int_to_state(1, N)
 
-# Compare cycle structures across rules
-for rule_name in ["30", "90", "110", "184"]:
-    rule_fn = get_rule(rule_name)
+# Compare cycle structures across different rules
+rule_examples = {
+    "identity": "0 1 2 3 4 5 6 7",
+    "reverse": "7 6 5 4 3 2 1 0",
+    "rotation": "1 2 3 4 5 6 7 0",
+}
+
+for name, rule_str in rule_examples.items():
+    rule_fn = parse_permutation_rule(rule_str, N)
     cycs = cycles(N, rule_fn)
     lengths = sorted(len(c) for c in cycs)
-    print(f"Rule-{rule_name}: {len(cycs)} cycles with lengths {lengths}")
+    print(f"Rule '{name}': {len(cycs)} cycles with lengths {lengths}")
 ```
 
 ### Example 3: Checking Different Coarse-Grainings
 
 ```python
 from n_bit_universe import (
-    is_markovianly_closed, get_rule, _parse_custom_partition
+    is_markovianly_closed, parse_permutation_rule, _parse_custom_partition
 )
 
 N = 5
-rule_fn = get_rule("110")
+rule_str = "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31"  # Identity for N=5
+rule_fn = parse_permutation_rule(rule_str, N)
 
 # Define different custom partitions
 parity_partition = '{"even":[0,3,5,6,9,10,12,15,17,18,20,23,24,27,29,30],"odd":[1,2,4,7,8,11,13,14,16,19,21,22,25,26,28,31]}'
@@ -382,7 +311,7 @@ weight_partition = '{"w0":[0],"w1":[1,2,4,8,16],"w2":[3,5,6,9,10,12,17,18,20,24]
 cg_parity = _parse_custom_partition(parity_partition, N)
 cg_weight = _parse_custom_partition(weight_partition, N)
 
-# Check which coarse-grainings are Markovian for rule-110
+# Check which coarse-grainings are Markovian
 print(f"Parity closed: {is_markovianly_closed(N, cg_parity, rule_fn)}")
 print(f"Weight closed: {is_markovianly_closed(N, cg_weight, rule_fn)}")
 ```
@@ -390,13 +319,14 @@ print(f"Weight closed: {is_markovianly_closed(N, cg_weight, rule_fn)}")
 ### Example 4: Exploring Trajectories
 
 ```python
-from n_bit_universe import evolve, int_to_state, state_to_int, get_rule
+from n_bit_universe import evolve, int_to_state, state_to_int, parse_permutation_rule
 
 # Compare trajectory periods for different rules
-N = 6
-rule_fn = get_rule("184")  # Traffic flow rule
+N = 4
+rule_str = "0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15"  # Identity permutation
+rule_fn = parse_permutation_rule(rule_str, N)
 
-for initial_value in [1, 7, 15, 63]:
+for initial_value in [1, 7, 15, 10]:
     s0 = int_to_state(initial_value, N)
     traj = evolve(s0, steps=50, step_fn=rule_fn)
     
@@ -417,7 +347,7 @@ for initial_value in [1, 7, 15, 63]:
 - **s**: Microscopic state (N-bit binary string)
 - **H**: Shannon entropy (in natural logarithms/nats)
 - **M[m',m]**: Induced macro transition matrix (column-stochastic)
-- **T**: Time evolution operator (rule-90 step)
+- **T**: Time evolution operator
 
 ## License
 
