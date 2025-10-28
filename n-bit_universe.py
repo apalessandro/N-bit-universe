@@ -369,6 +369,7 @@ def _visualize_demo_trajectory(
     rule: str,
     eca_rule_num: int | None = None,
     layout: str = "spring",
+    coarse_node_size: int = 1200,
 ) -> None:
     """
     Visualize the trajectory on the coarse-grained phase space graph with entropy plot.
@@ -419,10 +420,11 @@ def _visualize_demo_trajectory(
     # Layout
     pos = _compute_layout(G, layout)
 
-    # Node sizes
-    max_node_size = 3000
-    raw_sizes = [G.nodes[macro]["count"] * 300 for macro in G.nodes()]
-    node_sizes = [min(size, max_node_size) for size in raw_sizes]
+    # Node sizes: enforce a uniform size independent of microstate counts
+    # This responds to the requirement that node size in the coarse-grained description
+    # should NOT reflect the number of microstates. We keep counts only in labels.
+    uniform_size = int(coarse_node_size)
+    node_sizes = [uniform_size for _ in G.nodes()]
 
     # Draw base graph
     nx.draw_networkx_nodes(
@@ -473,13 +475,8 @@ def _visualize_demo_trajectory(
 
     # Highlight visited nodes
     visited_macros = list(set(trajectory_macs))
-    visited_node_sizes = []
-    for macro in visited_macros:
-        if macro in G.nodes():
-            idx = list(G.nodes()).index(macro)
-            visited_node_sizes.append(node_sizes[idx])
-        else:
-            visited_node_sizes.append(800)
+    # Visited nodes use the same uniform size
+    visited_node_sizes = [uniform_size for _ in visited_macros]
 
     visited_pos = {m: pos[m] for m in visited_macros if m in pos}
     nx.draw_networkx_nodes(
@@ -500,7 +497,7 @@ def _visualize_demo_trajectory(
             {start_macro: pos[start_macro]},
             nodelist=[start_macro],
             node_color="green",
-            node_size=[node_sizes[list(G.nodes()).index(start_macro)]],
+            node_size=[uniform_size],
             alpha=1.0,
             ax=ax_graph,
             edgecolors="darkgreen",
@@ -618,6 +615,7 @@ def visualize_coarse_graph(
     rule_str: str,
     eca_rule_num: int | None = None,
     layout: str = "spring",
+    coarse_node_size: int = 1200,
 ) -> None:
     """
     Visualize the coarse-grained phase space graph.
@@ -681,10 +679,8 @@ def visualize_coarse_graph(
 
     pos = _compute_layout(G, layout)
 
-    # Node sizes proportional to number of microstates with a maximum cap
-    max_node_size = 3000  # Maximum size for the red ball
-    raw_sizes = [G.nodes[macro]["count"] * 300 for macro in G.nodes()]
-    node_sizes = [min(size, max_node_size) for size in raw_sizes]
+    uniform_size = int(coarse_node_size)
+    node_sizes = [uniform_size for _ in G.nodes()]
 
     # Draw nodes
     nx.draw_networkx_nodes(
@@ -899,6 +895,12 @@ def main():
         default="spring",
         help="Layout algorithm for trajectory coarse graph when --plot is used (spring, circular, shell, kamada, spectral, planar).",
     )
+    p_demo.add_argument(
+        "--coarse-node-size",
+        type=int,
+        default=1200,
+        help="Uniform node size for coarse-grained graph nodes (trajectory & coarse-graph). Counts appear only in labels.",
+    )
 
     p_cycles = sub.add_parser("cycles", help="Print cycle decomposition stats.")
     p_cycles.add_argument("-N", type=int, default=4, help="Number of bits")
@@ -969,6 +971,12 @@ def main():
         required=True,
         help="Custom grouping specification (JSON string or path). Required.",
     )
+    p_coarse_graph.add_argument(
+        "--coarse-node-size",
+        type=int,
+        default=1200,
+        help="Uniform node size for coarse-grained graph nodes. Overrides prior proportional sizing.",
+    )
 
     args = parser.parse_args()
 
@@ -981,7 +989,12 @@ def main():
         run_demo(args.N, args.steps, cg_func, args.rule, args.eca, layout=args.layout)
         if args.plot:
             visualize_coarse_graph(
-                args.N, cg_func, args.rule, args.eca, layout=args.layout
+                args.N,
+                cg_func,
+                args.rule,
+                args.eca,
+                layout=args.layout,
+                coarse_node_size=args.coarse_node_size,
             )
     elif args.cmd == "cycles":
         print_cycles(args.N, args.rule, args.eca)
@@ -989,7 +1002,14 @@ def main():
         visualize_graph(args.N, args.rule, args.eca, layout=args.layout)
     elif args.cmd == "coarse-graph":
         cg_func = _parse_custom_partition(args.groups, args.N)
-        visualize_coarse_graph(args.N, cg_func, args.rule, args.eca, layout=args.layout)
+        visualize_coarse_graph(
+            args.N,
+            cg_func,
+            args.rule,
+            args.eca,
+            layout=args.layout,
+            coarse_node_size=args.coarse_node_size,
+        )
 
 
 def _compute_layout(G: nx.Graph, layout: str) -> Dict[object, np.ndarray]:

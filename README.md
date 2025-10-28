@@ -121,6 +121,7 @@ Options:
 - `--eca RULE_NUM`: Elementary cellular automaton rule number (0-255). Automatically generates the full 2^N mapping. Mutually exclusive with `-r`.
 - `--groups`: JSON string or path specifying a full partition of the 2^N microstates (required)
 - `--layout`: Layout algorithm for the trajectory coarse graph when `--plot` is given. Choices: `spring` (default), `circular`, `shell`, `kamada`, `spectral`, `planar` (falls back to spring if not planar).
+- `--coarse-node-size`: Node size for coarse-grained graph nodes when `--plot` is used (default 1200).
 
 The demo mode provides:
 
@@ -176,6 +177,7 @@ Options:
 - `-r, --rule`: Space-separated integers 0…2^N−1 representing the mapping from each microstate to its image
 - `--eca RULE_NUM`: Elementary cellular automaton rule number (0-255). Mutually exclusive with `-r`.
 - `--layout`: Graph layout algorithm (default: `spring`). Other choices: `circular`, `shell`, `kamada`, `spectral`, `planar`.
+- `--coarse-node-size`: Uniform node size for macrostates (default 1200) when using `coarse-graph` or `demo --plot`.
 
 Shows a directed graph where:
 
@@ -204,7 +206,6 @@ Options:
 
 Features:
 
-- **Node size**: Proportional to the number of microstates in each macrostate (capped at maximum size)
 - **Node labels**: Show macrostate value and microstate count
 - **Edges**: Show transitions between macrostates
 - **Edge labels**: Display the number of microstates making each transition (acts as the weight)
@@ -221,6 +222,9 @@ python n-bit_universe.py coarse-graph -N 4 -r "0 1 2 3 4 5 6 7 8 9 10 11 12 13 1
 
 # Using --eca with Rule 90
 python n-bit_universe.py coarse-graph -N 5 --eca 90 --groups custom_partition_example.json
+
+# Larger node size for sparse graphs
+python n-bit_universe.py coarse-graph -N 5 --eca 90 --groups custom_partition_example.json --coarse-node-size 1800
 
 # Try alternative layouts:
 python n-bit_universe.py graph -N 4 --eca 90 --layout circular
