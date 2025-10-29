@@ -708,7 +708,13 @@ def visualize_coarse_graph(
         (u, v): f"{G[u][v]['weight']}" for u, v in G.edges() if G[u][v]["weight"] > 0
     }
     nx.draw_networkx_edge_labels(
-        G, pos, edge_labels, font_size=10, font_color="blue", ax=ax
+        G,
+        pos,
+        edge_labels,
+        font_size=10,
+        font_color="blue",
+        ax=ax,
+        connectionstyle="arc3,rad=0.1",
     )
 
     # Title with coarse-graining info
