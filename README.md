@@ -1,4 +1,4 @@
-# N-bit Universe
+# Visio
 
 A finite descriptive universe simulator implementing elementary cellular automata on N bits with comprehensive tools for analyzing microscopic and macroscopic dynamics.
 
