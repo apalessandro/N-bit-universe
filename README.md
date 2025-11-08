@@ -81,8 +81,6 @@ You can also use `demo` mode:
 python n-bit_universe.py demo -N 3 -t 12 -r "0 1 2 3 4 5 6 7" --groups '{"even-weight":[0,3,5,6],"odd-weight":[1,2,4,7]}' --plot
 ```
 
-Returned macro labels (e.g. `"A"`, `"High"`, or `"2"`) integrate seamlessly with entropy computations, transition matrix construction, Markovian closure tests, and visualization.
-
 ### Analysis Tools
 
 - **Entropy Calculations**: Shannon entropy for microscopic and macroscopic distributions (natural logs)
