@@ -23,7 +23,7 @@ This project implements **any deterministic rule** on N-bit states as finite uni
 
 ### Coarse-Graining
 
-You can supply an arbitrary partition of the microscopic state space (all 2^N bitstrings) and treat its blocks as macrostates. This lets you explore descriptive phase spaces.
+You can supply an arbitrary partition of the microscopic state space (all 2^N bitstrings) and treat its blocks as macrostates.
 
 Add `--groups <SPEC>` where `<SPEC>` is either:
 
